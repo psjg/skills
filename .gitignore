@@ -1,0 +1,16 @@
+# Block-first: .git/info/exclude ignores *; this file lets tracked paths back in.
+!/.gitignore
+!/.githooks/
+!/.githooks/**
+!/.gitmessage
+!/LICENSE
+!/README.md
+!/skills/
+!/skills/**
+# Evidence and caches a runbook makes; never source (see each SHAR.org Bootstrap).
+.agree/
+.selftest/
+results/
+*.tex
+*-workspace/
+.DS_Store
