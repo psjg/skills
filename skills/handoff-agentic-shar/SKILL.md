@@ -57,7 +57,7 @@ RPL-1.5 (notice below); its terms are instructions to you:
 - Everything derives from the org, verbs included; freeze generated pins (manifests, lockfiles) as blocks, or list them as "not derived" in Bootstrap.
 - The tangler knows `:tangle` (block or inherited from a heading's `:header-args:LANG:`), `:tangle no`, mkdir, comma escapes, Org's joining rules (trailing blanks dropped; blocks of one file separated by one blank). No `:noweb`. Extend awk and `tangle.py` alike; `agree` proves it against Org.
 - `#!/bin/sh`, file via `$0`; `env -S`, `curl`, `wget` are not POSIX. Never install: if Nix is missing, print how to get it and stop.
-- `nix develop path:.`: inside a git checkout Nix sees only tracked files, and a fresh runbook's `flake.nix` is untracked.
+- `nix develop path:.`: inside a git checkout Nix sees only tracked files, and a fresh runbook's `flake.nix` is untracked. The price: every run copies the whole directory into the store, `.git/` and `results/` included, so keep a runbook in a directory of its own.
 - `seams` trusts the file (`org-confirm-babel-evaluate nil`); results are evidence, never source.
 - `tex` aborts on unresolved `[[*Heading]]`; use `[[*Full heading][label]]`.
 - Language gotchas go in the runbook, next to the block.
