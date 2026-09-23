@@ -37,7 +37,7 @@ inblock { line = $0; if (line ~ /^,(\*|#\+)/) line = substr(line, 2); buf[++n] =
 }
 self=$0
 in_nix() {
-  if command -v nix >/dev/null 2>&1; then nix develop -c sh "$self" "$@"
+  if command -v nix >/dev/null 2>&1; then nix develop path:. -c sh "$self" "$@"
   else echo "nix not found: the toolchain is pinned in flake.nix and needs Nix."
        echo "1. your package manager, if it has nix; otherwise one of these, your choice:"
        if command -v curl >/dev/null 2>&1; then echo "2. curl -L https://nixos.org/nix/install | sh"
@@ -73,7 +73,8 @@ exit 0
 Everything here is derived from this file. It is a POSIX shell script up to
 its first =exit= and an Org document after it: =chmod +x SHAR.org &&
 ./SHAR.org= tangles every =:tangle= block (with the awk in the preamble;
-no Emacs) and runs the check inside the Nix shell it also tangles. Other
+no Emacs) and runs the check inside the Nix shell it also tangles (as
+=path:.=, so it works before =flake.nix= is tracked by git). Other
 verbs: =tangle=, =check=, =agree= (the awk tangle and Org's own must be
 byte-identical), =seams= (execute the named blocks and capture their
 =#+RESULTS:=; needs Emacs), =tex=. Not derived: =flake.lock= (=nix flake
@@ -129,9 +130,9 @@ __FIRST_CODE__
 * Seams
 
 Where two tools cannot share definitions, data passes through this file:
-named blocks listed under =seams= in the Makefile run with =make seams=,
-their =#+RESULTS:= stay here as evidence of one run, and other blocks read
-them with =:var=.
+the blocks named in the =seams= verb of the preamble run with =./SHAR.org
+seams=, their =#+RESULTS:= stay here as evidence of one run, and other
+blocks read them with =:var=.
 
 #+NAME: seam-example
 #+begin_src shell :results output :exports both :tangle no

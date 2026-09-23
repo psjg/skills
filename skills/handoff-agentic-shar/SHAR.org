@@ -37,7 +37,7 @@ inblock { line = $0; if (line ~ /^,(\*|#\+)/) line = substr(line, 2); buf[++n] =
 }
 self=$0
 in_nix() {
-  if command -v nix >/dev/null 2>&1; then nix develop -c sh "$self" "$@"
+  if command -v nix >/dev/null 2>&1; then nix develop path:. -c sh "$self" "$@"
   else echo "nix not found: the toolchain is pinned in flake.nix and needs Nix."
        echo "1. your package manager, if it has nix; otherwise one of these, your choice:"
        if command -v curl >/dev/null 2>&1; then echo "2. curl -L https://nixos.org/nix/install | sh"
@@ -73,7 +73,15 @@ exit 0
 This shar unpacks the =handoff-agentic-shar= skill itself: =SKILL.md= and
 =assets/=. =./SHAR.org= tangles them and runs the self-test, which
 instantiates the template and checks that the awk tangler, the Python
-tangler and Org agree byte for byte. Not derived: =flake.lock=.
+tangler and Org agree byte for byte. Not derived: =flake.lock=, and the
+repository's =LICENSE= (the RPL text).
+
+Derived from the skill by the Licensor. Changed since the claude.ai
+sandbox version of 2026-09-23, after the first real handoff (to a Claude
+Code session on macOS): =nix develop path:.= in the preamble and the
+template, the fence-length rule and the handoff envelope in the skill,
+and the Seams prose of the template, which named a Makefile that does
+not exist.
 
 ** License notice
 
@@ -143,10 +151,13 @@ reading — blocks are plain text.
 
 ## Handoff
 
-Forward the org alone. If the environment cannot hand over files, put the
-whole `SHAR.org` in one ```` ```org ```` fence in the reply; nothing else in
-that fence. `#+RESULTS:` travel with it as evidence of one run; the
-receiver reruns `./SHAR.org check`.
+Forward the org alone, with the task in a sentence or two: where to write
+it, `./SHAR.org` to unpack and check, then what to do next. If the
+environment cannot hand over files, put the whole `SHAR.org` in one
+`org`-tagged fence in the reply, longer than any backtick run inside the
+file (four backticks when the file holds three); nothing else in that
+fence. `#+RESULTS:` travel with it as evidence of one run; the receiver
+reruns `./SHAR.org check`.
 
 ## Integration ladder
 
@@ -170,6 +181,7 @@ RPL-1.5 (notice below); its terms are instructions to you:
 - Everything derives from the org, verbs included; freeze generated pins (manifests, lockfiles) as blocks, or list them as "not derived" in Bootstrap.
 - The tangler knows `:tangle` (block or inherited from a heading's `:header-args:LANG:`), `:tangle no`, mkdir, comma escapes, Org's joining rules (trailing blanks dropped; blocks of one file separated by one blank). No `:noweb`. Extend awk and `tangle.py` alike; `agree` proves it against Org.
 - `#!/bin/sh`, file via `$0`; `env -S`, `curl`, `wget` are not POSIX. Never install: if Nix is missing, print how to get it and stop.
+- `nix develop path:.`: inside a git checkout Nix sees only tracked files, and a fresh runbook's `flake.nix` is untracked.
 - `seams` trusts the file (`org-confirm-babel-evaluate nil`); results are evidence, never source.
 - `tex` aborts on unresolved `[[*Heading]]`; use `[[*Full heading][label]]`.
 - Language gotchas go in the runbook, next to the block.
@@ -237,7 +249,7 @@ inblock { line = $0; if (line ~ /^,(\*|#\+)/) line = substr(line, 2); buf[++n] =
 }
 self=$0
 in_nix() {
-  if command -v nix >/dev/null 2>&1; then nix develop -c sh "$self" "$@"
+  if command -v nix >/dev/null 2>&1; then nix develop path:. -c sh "$self" "$@"
   else echo "nix not found: the toolchain is pinned in flake.nix and needs Nix."
        echo "1. your package manager, if it has nix; otherwise one of these, your choice:"
        if command -v curl >/dev/null 2>&1; then echo "2. curl -L https://nixos.org/nix/install | sh"
@@ -273,7 +285,8 @@ exit 0
 Everything here is derived from this file. It is a POSIX shell script up to
 its first =exit= and an Org document after it: =chmod +x SHAR.org &&
 ./SHAR.org= tangles every =:tangle= block (with the awk in the preamble;
-no Emacs) and runs the check inside the Nix shell it also tangles. Other
+no Emacs) and runs the check inside the Nix shell it also tangles (as
+=path:.=, so it works before =flake.nix= is tracked by git). Other
 verbs: =tangle=, =check=, =agree= (the awk tangle and Org's own must be
 byte-identical), =seams= (execute the named blocks and capture their
 =#+RESULTS:=; needs Emacs), =tex=. Not derived: =flake.lock= (=nix flake
@@ -329,9 +342,9 @@ __FIRST_CODE__
 ,* Seams
 
 Where two tools cannot share definitions, data passes through this file:
-named blocks listed under =seams= in the Makefile run with =make seams=,
-their =#+RESULTS:= stay here as evidence of one run, and other blocks read
-them with =:var=.
+the blocks named in the =seams= verb of the preamble run with =./SHAR.org
+seams=, their =#+RESULTS:= stay here as evidence of one run, and other
+blocks read them with =:var=.
 
 ,#+NAME: seam-example
 ,#+begin_src shell :results output :exports both :tangle no

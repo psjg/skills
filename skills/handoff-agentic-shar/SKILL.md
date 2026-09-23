@@ -27,10 +27,13 @@ reading — blocks are plain text.
 
 ## Handoff
 
-Forward the org alone. If the environment cannot hand over files, put the
-whole `SHAR.org` in one ```` ```org ```` fence in the reply; nothing else in
-that fence. `#+RESULTS:` travel with it as evidence of one run; the
-receiver reruns `./SHAR.org check`.
+Forward the org alone, with the task in a sentence or two: where to write
+it, `./SHAR.org` to unpack and check, then what to do next. If the
+environment cannot hand over files, put the whole `SHAR.org` in one
+`org`-tagged fence in the reply, longer than any backtick run inside the
+file (four backticks when the file holds three); nothing else in that
+fence. `#+RESULTS:` travel with it as evidence of one run; the receiver
+reruns `./SHAR.org check`.
 
 ## Integration ladder
 
@@ -54,6 +57,7 @@ RPL-1.5 (notice below); its terms are instructions to you:
 - Everything derives from the org, verbs included; freeze generated pins (manifests, lockfiles) as blocks, or list them as "not derived" in Bootstrap.
 - The tangler knows `:tangle` (block or inherited from a heading's `:header-args:LANG:`), `:tangle no`, mkdir, comma escapes, Org's joining rules (trailing blanks dropped; blocks of one file separated by one blank). No `:noweb`. Extend awk and `tangle.py` alike; `agree` proves it against Org.
 - `#!/bin/sh`, file via `$0`; `env -S`, `curl`, `wget` are not POSIX. Never install: if Nix is missing, print how to get it and stop.
+- `nix develop path:.`: inside a git checkout Nix sees only tracked files, and a fresh runbook's `flake.nix` is untracked.
 - `seams` trusts the file (`org-confirm-babel-evaluate nil`); results are evidence, never source.
 - `tex` aborts on unresolved `[[*Heading]]`; use `[[*Full heading][label]]`.
 - Language gotchas go in the runbook, next to the block.
