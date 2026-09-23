@@ -1,0 +1,139 @@
+#!/bin/sh
+# -*- mode: org -*-
+#+begin_src sh :tangle no
+# POSIX sh up to `exit`, Org after. Needs sh and awk; Nix for the toolchain
+# (offered if missing); Emacs only for `seams` and `tex`.
+tangle() {
+awk '
+function target(hdr,   i, n, w) {
+  n = split(hdr, w, " ")
+  for (i = 1; i <= n; i++) if (w[i] == ":tangle") return w[i+1]
+  return ""
+}
+/^\* / { section_tangle = "" }
+/^:header-args:[a-z]*: / {
+  t = target($0); if (t != "") section_tangle = t; next
+}
+/^#\+begin_src/ {
+  t = target($0)
+  if (t == "") t = section_tangle
+  if (t == "no" || t == "") { skip = 1; next }
+  out = t; dir = t; sub("/[^/]*$", "", dir)
+  if (dir != t) system("mkdir -p \"" dir "\"")
+  if (!(out in seen)) { printf "" > out; seen[out] = 1; first[out] = 1 }
+  inblock = 1; n = 0; next
+}
+/^#\+end_src/ {
+  if (inblock) {
+    while (n > 0 && buf[n] == "") n--
+    if (!first[out]) print "" >> out
+    for (i = 1; i <= n; i++) print buf[i] >> out
+    first[out] = 0; close(out)
+  }
+  inblock = 0; skip = 0; next
+}
+inblock { line = $0; if (line ~ /^,(\*|#\+)/) line = substr(line, 2); buf[++n] = line; next }
+' "$1"
+}
+self=$0
+in_nix() {
+  if command -v nix >/dev/null 2>&1; then nix develop -c sh "$self" "$@"
+  else echo "nix not found: the toolchain is pinned in flake.nix and needs Nix."
+       echo "1. your package manager, if it has nix; otherwise one of these, your choice:"
+       if command -v curl >/dev/null 2>&1; then echo "2. curl -L https://nixos.org/nix/install | sh"
+       elif command -v wget >/dev/null 2>&1; then echo "2. wget -qO- https://nixos.org/nix/install | sh"
+       elif command -v python3 >/dev/null 2>&1; then echo "2. python3 -c 'import urllib.request as u;print(u.urlopen(\"https://nixos.org/nix/install\").read().decode())' | sh"
+       else echo "2. https://nixos.org/download (no curl, wget or python3 found; POSIX has no HTTP client)"; fi
+       exit 1; fi
+}
+case "${1:-run}" in
+  run)     tangle "$self"; in_nix check ;;
+  tangle)  tangle "$self" ;;
+  check)   __CHECK__ ;;                                   # inside the Nix shell
+  agree)   rm -rf .agree && mkdir -p .agree/awk .agree/emacs
+           cp "$self" .agree/awk/ && cp "$self" .agree/emacs/
+           (cd .agree/awk && sh "./$(basename "$self")" tangle)
+           (cd .agree/emacs && emacs --batch -l org --eval "(org-babel-tangle-file \"$(basename "$self")\")")
+           diff -r .agree/awk .agree/emacs && rm -rf .agree && echo TANGLERS-AGREE ;;
+  seams)   emacs --batch -l org -l ob-shell --eval '(setq org-confirm-babel-evaluate nil)' \
+             --eval "(progn (find-file \"$self\") (dolist (b (split-string \"__SEAMS__\")) (org-babel-goto-named-src-block b) (org-babel-execute-src-block)) (save-buffer))" ;;
+  tex)     emacs --batch -l org -l ox-latex --eval "(progn (find-file \"$self\") (org-latex-export-to-latex))" ;;
+  *)       echo "usage: $self [run|tangle|check|agree|seams|tex]"; exit 2 ;;
+esac
+exit 0
+#+end_src
+#+TITLE: __TITLE__
+#+AUTHOR: __AUTHOR__
+#+DATE: __DATE__
+#+OPTIONS: toc:2 num:t ^:nil
+#+PROPERTY: header-args :mkdirp yes :comments no
+
+* Bootstrap
+
+Everything here is derived from this file. It is a POSIX shell script up to
+its first =exit= and an Org document after it: =chmod +x SHAR.org &&
+./SHAR.org= tangles every =:tangle= block (with the awk in the preamble;
+no Emacs) and runs the check inside the Nix shell it also tangles. Other
+verbs: =tangle=, =check=, =agree= (the awk tangle and Org's own must be
+byte-identical), =seams= (execute the named blocks and capture their
+=#+RESULTS:=; needs Emacs), =tex=. Not derived: =flake.lock= (=nix flake
+lock=), =results/= (evidence), caches. Tangled files are never edited by hand.
+No =sh= at all (a sandboxed agent)? The blocks are plain text: read each
+=#+begin_src … :tangle PATH= and write it to PATH; that is all the awk does.
+
+** License notice
+
+Built with the handoff-agentic-shar skill by PSJ (https://github.com/psjg), licensed under the Reciprocal Public License 1.5.
+
+#+begin_quote
+Unless explicitly acquired and licensed from Licensor under another license, the contents of this file are subject to the Reciprocal Public License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL, and You may not copy or use this file in either source code or executable form, except in compliance with the terms and conditions of the RPL.
+
+All software distributed under the RPL is provided strictly on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific language governing rights and limitations under the RPL.
+
+Licensor: PSJ (https://github.com/psjg). Source: https://github.com/psjg/skills (skills/handoff-agentic-shar/SKILL.md).
+#+end_quote
+
+** Toolchain
+
+#+begin_src nix :tangle flake.nix
+{
+  description = "__TITLE__";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  outputs = { self, nixpkgs }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
+      forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+    in {
+      devShells = forAll (pkgs: {
+        default = pkgs.mkShell {
+          packages = [
+            pkgs.emacs-nox
+            __PACKAGES__
+          ];
+          shellHook = ''export LC_ALL=C.UTF-8'';
+        };
+      });
+    };
+}
+#+end_src
+
+
+* __FIRST_CHAPTER__
+
+Say why this exists; the block below says what it is.
+
+#+begin_src __LANG__ :tangle __FIRST_FILE__
+__FIRST_CODE__
+#+end_src
+
+* Seams
+
+Where two tools cannot share definitions, data passes through this file:
+named blocks listed under =seams= in the Makefile run with =make seams=,
+their =#+RESULTS:= stay here as evidence of one run, and other blocks read
+them with =:var=.
+
+#+NAME: seam-example
+#+begin_src shell :results output :exports both :tangle no
+echo "replace with a real cross-tool step"
+#+end_src
