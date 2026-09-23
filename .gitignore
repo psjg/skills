@@ -14,3 +14,4 @@ results/
 *.tex
 *-workspace/
 .DS_Store
+__pycache__/
