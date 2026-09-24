@@ -7,4 +7,11 @@ from it (`./SHAR.org` unpacks and checks; see its Bootstrap chapter).
 - `handoff-agentic-shar`: deliver a multi-file, reproducible program as
   one self-unpacking Org file that any agent can carry forward.
 
+Install with the [skills](https://skills.sh) CLI, which puts them where
+Claude Code, Codex, Cursor and other agents look:
+
+```bash
+npx skills add psjg/skills
+```
+
 License: Reciprocal Public License 1.5 (`LICENSE`), unless a skill says otherwise.
