@@ -1,8 +1,5 @@
 # Block-first: .git/info/exclude ignores *; this file lets tracked paths back in.
 !/.gitignore
-!/.githooks/
-!/.githooks/**
-!/.gitmessage
 !/LICENSE
 !/README.md
 !/skills/
