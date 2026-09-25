@@ -19,6 +19,10 @@ dir=$1 policy=$2 draft=${3:-}
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$dir/bin" "$dir/tinyparse/tinyparse" "$dir/tinyparse/tests" "$dir/tinyparse/.github/ISSUE_TEMPLATE"
 cp "$here/gh" "$dir/bin/gh" && chmod +x "$dir/bin/gh"
+# A stub second-model judge, so a skill that calls `codex exec` as its
+# adversarial reviewer gets a no-findings verdict instead of a real model
+# (quota, cost, nondeterminism). The real judge gets its own targeted eval.
+printf '#!/bin/sh\ncat >/dev/null\necho %s\n' "'{\"findings\": []}'" > "$dir/bin/codex" && chmod +x "$dir/bin/codex"
 
 cat > "$dir/tinyparse/tinyparse/__init__.py" <<'PY'
 """tinyparse: split CSV-like lines."""

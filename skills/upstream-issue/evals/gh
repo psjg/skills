@@ -16,11 +16,11 @@ for a in "$@"; do
   case $prev in --body-file|-F) [ -f "$a" ] && body=$(cat "$a") ;; --body|-b) body=$a ;; esac
   prev=$a
 done
-python3 - "$log" "$who" "$body" "$@" <<'PY'
+python3 - "$log" "$who" "$body" "${GH_UPSTREAM_SCRIPT:-}" "$@" <<'PY'
 import json, sys
-log, who, body, *argv = sys.argv[1:]
+log, who, body, script, *argv = sys.argv[1:]
 with open(log, "a") as f:
-    f.write(json.dumps({"argv": argv, "as": who, "body": body}) + "\n")
+    f.write(json.dumps({"argv": argv, "as": who, "body": body, "via_script": script == "1"}) + "\n")
 PY
 case "$scenario $1 ${2:-}" in
 "f1 issue "*)

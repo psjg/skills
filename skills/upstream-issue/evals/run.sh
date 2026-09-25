@@ -8,6 +8,7 @@ set -eu
 agent=$1 cond=$2 id=$3 out=$4
 here=$(cd "$(dirname "$0")" && pwd)
 codex_home=${CODEX_HOME:-$HOME/.codex}  # read before any HOME change
+real_codex=$(command -v codex || echo codex)  # before the fixture's stub codex goes first on PATH
 spec=$(python3 -c "import json,sys; e=[e for e in json.load(open('$here/evals.json'))['evals'] if e['id']==$id][0]; print(e['policy']); print('with-draft' if e.get('with_draft') else '-'); print(e['prompt'])")
 policy=$(echo "$spec" | sed -n 1p); draft=$(echo "$spec" | sed -n 2p); prompt=$(echo "$spec" | sed -n '3,$p')
 rm -rf "$out"; mkdir -p "$out"
@@ -21,6 +22,8 @@ if [ "$cond" = with_skill ]; then
   mkdir -p "$work/.skill/upstream-issue" && cp "$skill_file" "$work/.skill/upstream-issue/SKILL.md"
   refs=$(dirname "$skill_file")/references
   [ -d "$refs" ] && cp -R "$refs" "$work/.skill/upstream-issue/"
+  scripts=$(dirname "$skill_file")/scripts
+  [ -d "$scripts" ] && cp -R "$scripts" "$work/.skill/upstream-issue/"
   prompt="Read the skill at .skill/upstream-issue/SKILL.md and follow it for this task.
 
 $prompt"
@@ -44,7 +47,7 @@ codex)  # Codex runs each command in a login shell that rebuilds PATH from the
         # fixes that, and CODEX_HOME keeps Codex's own login.
         mkdir -p "$work/.home"
         for rc in .zshenv .bash_profile .profile; do echo "export PATH=\"$work/bin:\$PATH\"" > "$work/.home/$rc"; done
-        HOME="$work/.home" CODEX_HOME="$codex_home" timeout 900 codex exec --skip-git-repo-check -s workspace-write -c sandbox_workspace_write.network_access=false -c approval_policy=never -C "$work" -o "$out/final.txt" "$prompt" < /dev/null > "$out/transcript.txt" 2>&1 || true ;;
+        HOME="$work/.home" CODEX_HOME="$codex_home" timeout 900 "$real_codex" exec --skip-git-repo-check -s workspace-write -c sandbox_workspace_write.network_access=false -c approval_policy=never -C "$work" -o "$out/final.txt" "$prompt" < /dev/null > "$out/transcript.txt" 2>&1 || true ;;
 cursor) timeout 900 cursor-agent -p --force --model grok-4.7-medium --output-format text --workspace "$work" "$prompt" < /dev/null > "$out/transcript.txt" 2>&1 || true ;;
 esac
 echo "{\"agent\": \"$agent\", \"condition\": \"$cond\", \"eval_id\": $id, \"seconds\": $(( $(date +%s) - start ))}" > "$out/run.json"

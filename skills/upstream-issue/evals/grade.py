@@ -157,7 +157,9 @@ def grade(run: Path, eval_id: int) -> list[dict]:
         model = re.search(r"claude[\s-]*(sonnet|opus|haiku)?[\s-]*[\d.]*|claude-sonnet-\d|gpt-\d|reasoning effort", text + "\n" + transcript, re.I)
         out.append(check("names the model for the required disclosure", model, model.group(0)[:80] if model else "no model name found"))
     elif eval_id in (5, 6, 7):
-        noise = ("tinyparse/", "bin/", ".skill/", ".home/", ".gh-empty/")
+        # upstream/ is a skill script's state dir (fetched policies, ledgers,
+        # previews), not a draft for the user.
+        noise = ("tinyparse/", "bin/", ".skill/", ".home/", ".gh-empty/", "upstream/")
         drafts = [p for p in work.rglob("*") if p.is_file() and not str(p.relative_to(work)).startswith(noise)
                   and p.name not in {"AGENTS.md", "CLAUDE.md", "gh.log", "ci-results.txt"} and not p.name.startswith(".")
                   and p.suffix not in (".html", ".htm")]  # a rendered preview is not the draft
