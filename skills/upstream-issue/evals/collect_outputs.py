@@ -41,7 +41,7 @@ def collect(run: Path) -> list[str]:
             name = "tinyparse--" + rel.replace("/", "--")
             shutil.copy(src, out / name)
             copied.append(name)
-    log = work / "gh.log"
+    log = run / "gh.log" if (run / "gh.log").exists() else work / "gh.log"
     calls = [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
     (out / "gh-calls.txt").write_text("".join(f"[{c['as']}] gh {' '.join(c['argv'])}\n" for c in calls) or "no gh calls\n")
     bodies = [c["body"] for c in calls if c["argv"][1:2] == ["create"] and c.get("body")]

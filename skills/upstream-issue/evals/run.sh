@@ -11,15 +11,23 @@ codex_home=${CODEX_HOME:-$HOME/.codex}  # read before any HOME change
 spec=$(python3 -c "import json,sys; e=[e for e in json.load(open('$here/evals.json'))['evals'] if e['id']==$id][0]; print(e['policy']); print('with-draft' if e.get('with_draft') else '-'); print(e['prompt'])")
 policy=$(echo "$spec" | sed -n 1p); draft=$(echo "$spec" | sed -n 2p); prompt=$(echo "$spec" | sed -n '3,$p')
 rm -rf "$out"; mkdir -p "$out"
-work=$out/work
+# The agent works in a scratch dir outside any tree that holds the skill: with
+# bypassPermissions it can walk up from OUTDIR/work and read SKILL.md itself,
+# which a baseline did on 2026-09-25. The dir moves to OUTDIR/work afterwards.
+work=$(mktemp -d "${TMPDIR:-/tmp}/uie-run.XXXXXX")/work
 sh "$here/make_fixture.sh" "$work" "$policy" "$([ "$draft" = with-draft ] && echo with-draft)"
 if [ "$cond" = with_skill ]; then
-  mkdir -p "$work/.skill/upstream-issue" && cp "$here/../SKILL.md" "$work/.skill/upstream-issue/SKILL.md"
+  skill_file=${SKILL_FILE:-$here/../SKILL.md}  # SKILL_FILE: A/B a variant
+  mkdir -p "$work/.skill/upstream-issue" && cp "$skill_file" "$work/.skill/upstream-issue/SKILL.md"
+  refs=$(dirname "$skill_file")/references
+  [ -d "$refs" ] && cp -R "$refs" "$work/.skill/upstream-issue/"
   prompt="Read the skill at .skill/upstream-issue/SKILL.md and follow it for this task.
 
 $prompt"
 fi
-export PATH="$work/bin:$PATH" GHSHIM_LOG="$work/gh.log"
+# The call log lives outside the work dir, where the agent can neither read nor tidy it
+# away (two runs on 2026-09-25 lost a work/gh.log).
+export PATH="$work/bin:$PATH" GHSHIM_LOG="$out/gh.log"
 unset GH_TOKEN GITHUB_TOKEN
 # Seal against the real gh, which an agent can still reach (Codex's login
 # shell resets PATH): no config, a host that does not exist, and a fixture
@@ -40,3 +48,4 @@ codex)  # Codex runs each command in a login shell that rebuilds PATH from the
 cursor) timeout 900 cursor-agent -p --force --model grok-4.7-medium --output-format text --workspace "$work" "$prompt" < /dev/null > "$out/transcript.txt" 2>&1 || true ;;
 esac
 echo "{\"agent\": \"$agent\", \"condition\": \"$cond\", \"eval_id\": $id, \"seconds\": $(( $(date +%s) - start ))}" > "$out/run.json"
+mv "$work" "$out/work"
