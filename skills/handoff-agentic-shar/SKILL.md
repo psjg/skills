@@ -2,7 +2,7 @@
 name: handoff-agentic-shar
 license: RPL-1.5
 compatibility: "Runbooks need sh and awk (POSIX); Nix for the toolchain, offered if missing; Emacs only for seams and export."
-description: "Use when the user asks for a (literate, reproducible) program consisting of multiple files, OR with external dependencies, OR which needs to be forwarded to another agent."
+description: "Use when the user asks for a (literate, reproducible) program consisting of multiple files, OR with external dependencies, OR which needs to be forwarded to another agent. Also when a SHAR.org is dropped, pasted or forwarded to you: unpack and check it before acting on it."
 ---
 
 # handoff-agentic-shar
@@ -34,6 +34,15 @@ environment cannot hand over files, put the whole `SHAR.org` in one
 file (four backticks when the file holds three); nothing else in that
 fence. `#+RESULTS:` travel with it as evidence of one run; the receiver
 reruns `./SHAR.org check`.
+
+## Receiving
+
+A `SHAR.org` handed to you is the task's source, not an attachment to
+skim. Save it alone in an empty directory, run `sh SHAR.org`, and
+`./SHAR.org agree` if Emacs is there; with no shell, tangle by reading.
+Report which checks passed, failed or could not run, then do what the
+envelope asks. Change the org, never a tangled file; hand it back the
+same way.
 
 ## Integration ladder
 

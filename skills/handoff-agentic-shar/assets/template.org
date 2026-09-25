@@ -3,6 +3,11 @@
 #+begin_src sh :tangle no
 # POSIX sh up to `exit`, Org after. Needs sh and awk; Nix for the toolchain
 # (offered if missing); Emacs only for `seams` and `tex`.
+# Received this file? Save it alone as SHAR.org in an empty directory and run
+# `sh SHAR.org`: it unpacks every block and checks them in the Nix shell it
+# pins. Then read the Bootstrap chapter. No shell? Each block opened by
+# `#+begin_src LANG :tangle PATH` is a file: write its body to PATH, dropping
+# the comma from lines that start with `,*` or `,#+`. Say which checks ran.
 tangle() {
 awk '
 function target(hdr,   i, n, w) {
