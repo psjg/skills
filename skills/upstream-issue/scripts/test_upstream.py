@@ -398,12 +398,25 @@ class Flow(Base):
         self.up("claim", "add", "--text", "t", "--cmd", "true", "--permalink",
                 f"https://github.com/{REPO}/blob/main/tinyparse/__init__.py#L18", ok=False)
 
-    def test_refuse_outcome_stops(self):
+    def test_refuse_outcome_gathers_facts_then_stops(self):
+        """A channel that refuses AI content still gets the facts (search,
+        claims with permalinks) for the user to write from; only the draft
+        and everything after it are off."""
         self.up("init", REPO, "--channel", "issue", "--user", "@psjg")
         self.up("rules", "--local", "tinyparse")
-        self.up("rules", "classify", "--outcome", "refuse", "--form", "no AI content at all")
+        self.up("rules", "classify", "--outcome", "refuse", "--form", "a human writes the description")
+        self.assertEqual(self.state()["state"], "search")
+        self.up("search", "--keywords", "trailing empty field")
+        self.up("search", "mark", "12", "unrelated", "whitespace")
+        self.up("search", "mark", "7", "unrelated", "docs")
+        self.up("claim", "add", "--text", CLAIM, "--cmd", CMD, "--permalink", self.link)
+        self.up("env", "--text", "macOS 27.0")
         self.assertEqual(self.state()["state"], "refused")
-        self.up("search", "--keywords", "x", ok=False)
+        facts = self.up("claim", "list")
+        self.assertIn(self.link, facts)
+        self.assertIn("> ['a', 'b']", facts)
+        self.write_draft()
+        self.up("draft", "check", "draft.md", ok=False)
 
     def test_issue_only_stops_a_pr(self):
         self.up("init", REPO, "--channel", "pr", "--user", "@psjg")

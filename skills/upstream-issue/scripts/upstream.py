@@ -180,7 +180,7 @@ STATES = {
     "posted": ("Posted, author verified, URL in RECORD.md", "stop"),
     "forked": ("8 Rung 3: the patch series on the upstream tag, pushed to the machine account's fork", "step"),
     "security": ("Security problem: private channel, the human sends it", "stop"),
-    "refused": ("AI content refused: facts to the user, no draft; fix in the user's fork, step 8", "stop"),
+    "refused": ("AI content refused: the facts from claim list go to the user, no draft; fix in the user's fork, step 8", "stop"),
     "pr-refused": ("PRs closed until vouched: an issue with the diff instead", "stop"),
     "duplicate": ("Match found: comment there with --channel comment, or tell the user", "stop"),
 }
@@ -289,7 +289,6 @@ def g_post(L, h):
 EDGES = [
     Edge("start", "rules", "go", "init OWNER/REPO --channel"),
     Edge("rules", "security", "stop", "rules classify --security", lambda L, h: need(L["rules"].get("security"), "-")),
-    Edge("rules", "refused", "stop", "outcome refuse", lambda L, h: need(L["rules"].get("outcome") == "refuse", "-")),
     Edge("rules", "pr-refused", "stop", "outcome issue-only, channel pr",
          lambda L, h: need(L["rules"].get("outcome") == "issue-only" and L["channel"] == "pr", "-")),
     Edge("rules", "search", "go", "rules, rules classify", g_rules),
@@ -297,6 +296,8 @@ EDGES = [
          lambda L, h: need(L["channel"] != "comment" and "duplicate" in {m["mark"] for m in L["marks"].values()}, "-")),
     Edge("search", "evidence", "go", "search, search mark", g_search),
     Edge("evidence", "draft", "go", "claim add, env", g_evidence),
+    Edge("draft", "refused", "stop", "outcome refuse: claim list to the user",
+         lambda L, h: need(L["rules"].get("outcome") == "refuse", "-")),
     Edge("draft", "judged", "go", "draft check", g_draft),
     Edge("judged", "approval", "go", "judge", g_judge),
     Edge("approval", "approved", "go", "approve --by", g_approve),
@@ -749,7 +750,9 @@ def cmd_claim(a, w: Work):
         return L
     if a.action == "list":
         for c in L["claims"]:
-            print(f"[{c['id']}] {c['text']}\n    $ {c['cmd']}  (exit {c['exit']}, cwd {c['cwd']})\n    {c.get('permalink') or 'no permalink: ' + c.get('no_permalink', '')}")
+            out = "\n".join("    > " + l for l in c["output"].splitlines()[:8])
+            print(f"[{c['id']}] {c['text']}\n    $ {c['cmd']}  (exit {c['exit']}, cwd {c['cwd']})\n{out}\n"
+                  f"    {c.get('permalink') or 'no permalink: ' + c.get('no_permalink', '')}")
         return None
     require(L, w, "evidence")
     if not (a.permalink or a.no_permalink):

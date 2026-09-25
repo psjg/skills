@@ -46,17 +46,17 @@ flowchart TD
     posted(["Posted, author verified, URL in RECORD.md"])
     forked["8 Rung 3: the patch series on the upstream tag, pushed to the machine account's fork"]
     security(["Security problem: private channel, the human sends it"])
-    refused(["AI content refused: facts to the user, no draft; fix in the user's fork, step 8"])
+    refused(["AI content refused: the facts from claim list go to the user, no draft; fix in the user's fork, step 8"])
     pr_refused(["PRs closed until vouched: an issue with the diff instead"])
     duplicate(["Match found: comment there with --channel comment, or tell the user"])
     start -->|"init OWNER/REPO --channel"| rules
     rules -->|"rules classify --security"| security
-    rules -->|"outcome refuse"| refused
     rules -->|"outcome issue-only, channel pr"| pr_refused
     rules -->|"rules, rules classify"| search
     search -->|"a hit marked duplicate"| duplicate
     search -->|"search, search mark"| evidence
     evidence -->|"claim add, env"| draft
+    draft -->|"outcome refuse: claim list to the user"| refused
     draft -->|"draft check"| judged
     judged -->|"judge"| approval
     approval -->|"approve --by"| approved
@@ -181,7 +181,7 @@ list), the handle from the user's instructions.
    | disclose-attest | human in the loop, a required form (trailer, PR sentence) | use exactly their form |
    | attest-explain | the human must explain it to a reviewer | no PR unless the user can |
    | issue-only | PRs closed until vouched (`!vouch`, `lgtm`) | issue with the fix in words or as a diff; PR after vouching |
-   | refuse | AI content forbidden | facts to the user, no draft (see 3); fix in their fork |
+   | refuse | AI content forbidden | search and claims as usual, then `claim list` gives the user the facts; no draft; fix in their fork |
 
    `upstream.py rules classify --outcome OUTCOME --form "<the disclosure
    form they demand or forbid>" --note "..."`, plus `--security` for a
