@@ -6,10 +6,11 @@ from it (`./SHAR.org` unpacks and checks; see its Bootstrap chapter).
 
 - `handoff-agentic-shar`: deliver a multi-file, reproducible program as
   one self-unpacking Org file that any agent can carry forward.
-- `upstream-issue`: file an issue, PR comment or test report on someone
-  else's project as an AI agent: read their rules and the thread's tone,
-  draft to a file, the human reviews, post from the machine account with
-  a disclosure, record the URL.
+- `upstream-issue`: report to someone else's project as an AI agent (an
+  issue, a comment or test report, a patch): read their rules and AI policy,
+  search for duplicates, pin verified evidence, disclose the agent on the
+  first line, post only on the human's go and from the account they keep for
+  agents. Evaluated with Claude Code, Codex and Cursor in `evals/`.
 
 Install with the [skills](https://skills.sh) CLI, which puts them where
 Claude Code, Codex, Cursor and other agents look:
