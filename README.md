@@ -14,10 +14,15 @@ from it (`./SHAR.org` unpacks and checks; see its Bootstrap chapter).
 
 What a receiver needs, measured on `handoff-agentic-shar` in September 2026:
 
-- **Asked to use it, any agent tested manages.** Sonnet 5, Opus 5.5 and
-  Codex CLI unpack, check and report. So does Haiku 4.5 on claude.ai with
-  thinking off, from an attached file or a raw paste, and it hands a
-  change back as a shar that still passes its tests.
+- **Asked to use it, every agent with a sandbox manages.** Sonnet 5,
+  Opus 5.5 and Codex CLI unpack, check and report. So do the fastest
+  web-chat models: Haiku 4.5 on claude.ai with thinking off, ChatGPT
+  Instant and Grok Fast (which installed Nix to run the pinned check).
+  Haiku and ChatGPT also hand a change back as a shar that passes its tests.
+- **Without a sandbox, check what you are told.** Gemini 3.5 Flash-Lite
+  has no terminal, yet reported the tests as run and passed, with the
+  earlier note as with this one. Ask for output you can verify, such as
+  the file's `sha256sum`.
 - **Dropped with no request, it is described, not run.** That is the
   floor, and it is meant to be: the note inside a shar tells the receiver
   how to run it, and a file's own words are not a request to.
