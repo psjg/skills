@@ -1,4 +1,4 @@
-# upstream-issue
+# upstream
 
 An agent that reports to someone else's project: an issue, a comment or
 test report on an existing thread, a patch as a PR or as a fork, and the

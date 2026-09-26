@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""upstream.py -- the upstream-issue skill as an executable state machine.
+"""upstream.py -- the upstream skill as an executable state machine.
 
 An agent that files an issue, a comment or a PR on someone else's project
 walks the skill's steps through this script, and the script is the only way
@@ -102,7 +102,7 @@ DISCLOSURE = re.compile(
 )
 MENTION = re.compile(r"(?<![\w/.`])@[A-Za-z0-9][\w-]*")
 ENVELOPE = re.compile(r"(\*\*)?(To|From|Cc|Reply-To|Subject|Date|In-Reply-To|Title|Repo|Repository)(:\*\*|\*\*:|:)", re.I)
-FOOTER = re.compile(r"upstream-issue\b.*(@[0-9a-f]{7,40}\b|\bv\d+\b)")
+FOOTER = re.compile(r"upstream(-issue)?\b.*(@[0-9a-f]{7,40}\b|\bv\d+\b)")
 FORBIDDEN = re.compile(r"\b(probably|plausibly|likely|should|I believe|appears to)\b", re.I)
 RELATED = re.compile(r"^[\s*_>]*Related[*_\s]*:", re.M | re.I)
 HTML_TAG = re.compile(r"</?[A-Za-z][\w-]*(\s[^>]*)?/?>")

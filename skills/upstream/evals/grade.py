@@ -1,4 +1,4 @@
-"""Grade one eval run of upstream-issue mechanically.
+"""Grade one eval run of the upstream skill mechanically.
 
     python3 grade.py RUN_DIR EVAL_ID     # writes RUN_DIR/grading.json
 

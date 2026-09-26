@@ -29,7 +29,7 @@ REPO = "psjg/upstream-issue-eval-fixture"
 CMD = """cd tinyparse && python3 -c 'from tinyparse import parse_line; print(parse_line("a,b,"))'"""
 CLAIM = "`parse_line(\"a,b,\")` returns `['a', 'b']` on tinyparse 0.4.1: the `if cur:` guard drops the trailing empty field."
 DISCLOSE = "*Written by an AI agent (Claude Opus 5.5, Claude Code, reasoning effort high) for {h}, who ran its commands and approved posting.*"
-FOOTER = "*Prepared with the upstream-issue skill (psjg/skills@abc1234), which lists the checks this report claims to pass.*"
+FOOTER = "*Prepared with the upstream skill (psjg/skills@abc1234), which lists the checks this report claims to pass.*"
 FAKE_JUDGE = """#!{py}
 # Blocks every draft line that mentions an import job: a planted claim no
 # ledger entry supports.

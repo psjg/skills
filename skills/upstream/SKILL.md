@@ -1,5 +1,5 @@
 ---
-name: upstream-issue
+name: upstream
 license: RPL-1.5
 metadata:
   version: "2"
@@ -7,7 +7,7 @@ compatibility: "Python 3.10+ and GitHub via the gh CLI and git; scripts/upstream
 description: "Report to someone else's project as an agent: an issue or ticket, a comment or test report on their issue or PR, or a patch. Use it for every `gh issue create`, `gh issue comment` or `gh pr create` aimed at a repo, library, crate, CLI, app or dependency the user has not marked as their own (\"my repo\", their own handle), and for asks like \"send it upstream\", \"tell the maintainers\", \"is this a known issue? if not, write one up\" or \"post our numbers on that PR\". Load it the moment they ask, before searching for, recalling or re-asking about the finding: this skill says how to reconstruct and verify it. Covers the project's contribution and AI policy, a duplicate search, verified claims with commit-pinned links, disclosing the agent on the first line, the user's explicit go, and posting from the account the user keeps for agents. Tracking issues in the user's own repositories is not upstream."
 ---
 
-# upstream-issue
+# upstream
 
 A contribution is worth the maintainer minutes it returns minus the minutes
 it costs them to check. A verified, reproducible, disclosed report with a
@@ -245,11 +245,11 @@ list), the handle from the user's instructions.
    instructions; never one dug out of git config or commit history. And the
    last line to the footer:
 
-   > *Prepared with the upstream-issue skill (psjg/skills@<sha>), which lists
+   > *Prepared with the upstream skill (psjg/skills@<sha>), which lists
    > the checks this report claims to pass.*
 
    `<sha>`: `git -C <skill dir> rev-parse --short HEAD`; without a checkout,
-   the version from this file's frontmatter (`psjg/skills upstream-issue
+   the version from this file's frontmatter (`psjg/skills upstream
    v2`). In a PR both lines go in the PR text, never as trailers, next to the
    project's own required form.
 
