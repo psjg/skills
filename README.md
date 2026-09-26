@@ -6,7 +6,7 @@ from it (`./SHAR.org` unpacks and checks; see its Bootstrap chapter).
 
 - `handoff-agentic-shar`: deliver a multi-file, reproducible program as
   one self-unpacking Org file that any agent can carry forward.
-- `upstream-issue`: report to someone else's project as an AI agent (an
+- `upstream`: report to someone else's project as an AI agent (an
   issue, a comment or test report, a patch): read their rules and AI policy,
   search for duplicates, pin verified evidence, disclose the agent on the
   first line, post only on the human's go and from the account they keep for

@@ -19,12 +19,12 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/uie-run.XXXXXX")/work
 sh "$here/make_fixture.sh" "$work" "$policy" "$([ "$draft" = with-draft ] && echo with-draft)"
 if [ "$cond" = with_skill ]; then
   skill_file=${SKILL_FILE:-$here/../SKILL.md}  # SKILL_FILE: A/B a variant
-  mkdir -p "$work/.skill/upstream-issue" && cp "$skill_file" "$work/.skill/upstream-issue/SKILL.md"
+  mkdir -p "$work/.skill/upstream" && cp "$skill_file" "$work/.skill/upstream/SKILL.md"
   refs=$(dirname "$skill_file")/references
-  [ -d "$refs" ] && cp -R "$refs" "$work/.skill/upstream-issue/"
+  [ -d "$refs" ] && cp -R "$refs" "$work/.skill/upstream/"
   scripts=$(dirname "$skill_file")/scripts
-  [ -d "$scripts" ] && cp -R "$scripts" "$work/.skill/upstream-issue/"
-  prompt="Read the skill at .skill/upstream-issue/SKILL.md and follow it for this task.
+  [ -d "$scripts" ] && cp -R "$scripts" "$work/.skill/upstream/"
+  prompt="Read the skill at .skill/upstream/SKILL.md and follow it for this task.
 
 $prompt"
 fi
