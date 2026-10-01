@@ -76,12 +76,14 @@ Stdlib only; Von is imported lazily and only when asked for.
 import argparse
 import difflib
 import fcntl
+import getpass
 import hashlib
 import json
 import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -107,12 +109,13 @@ FORBIDDEN = re.compile(r"\b(probably|plausibly|likely|should|I believe|appears t
 RELATED = re.compile(r"^[\s*_>]*Related[*_\s]*:", re.M | re.I)
 HTML_TAG = re.compile(r"</?[A-Za-z][\w-]*(\s[^>]*)?/?>")
 FENCE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1[^\n]*$", re.S | re.M)
+FENCE_LINE = re.compile(r"^[ \t]*(```|~~~)")
 POLICY_TERMS = [re.compile(r"\b(AI|LLM|DCO|WIP)\b"),
                 re.compile(r"\b(generated|copilot|agents?|assisted-by|vouch\w*|signed-off-by|mentions?)\b", re.I)]
 POLICY_NAME = re.compile(r"^(CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)(\.\w+)?$", re.I)
 OUTCOMES = ["welcome", "disclose-attest", "attest-explain", "issue-only", "refuse"]
 MARKS = ["duplicate", "related", "unrelated"]
-FINDING_KINDS = {"unsupported", "inference", "third-party-mention", "irrelevant", "tone", "other"}
+FINDING_KINDS = {"unsupported", "inference", "third-party-mention", "private", "irrelevant", "tone", "other"}
 CAP = 16000  # bytes of command output kept per claim
 HERE = Path(__file__).resolve().parent
 JEV_URL = "https://openrouter.ai/api/alpha/decisions"
@@ -137,12 +140,15 @@ Be adversarial about exactly these, and flag nothing else:
   ("X crashes because Y" with no run showing it);
 - unsupported: a number that appears in no ledger output;
 - third-party-mention: a person mentioned or @-pinged who did not ask;
+- private: what the report does not need about the user (a usage total, a
+  plan or premium model name, a path, a user or host name), unless listed in
+  "allowed", which the user approved; a ratio would make the same point;
 - tone: demands, blame, or pressure on the maintainer.
 The "flagged" list holds sentences a decision model could not tie to the
 ledger; confirm or dismiss each by the rules above.
 
 Answer with strict JSON only, no prose around it:
-{"findings": [{"quote": "<exact sentence>", "kind": "unsupported|inference|third-party-mention|irrelevant|tone|other", "blocking": true|false, "why": "<one clause>"}]}
+{"findings": [{"quote": "<exact sentence>", "kind": "unsupported|inference|third-party-mention|private|irrelevant|tone|other", "blocking": true|false, "why": "<one clause>"}]}
 A finding is blocking when a maintainer would be misled or would have to redo
 the work. Return {"findings": []} when there is nothing."""
 
@@ -206,7 +212,8 @@ class Edge:
 def inputs_sha(L: dict) -> str:
     """What a draft check depends on besides the draft text."""
     return sha({"claims": [{k: c.get(k) for k in ("text", "cmd", "output", "exit", "permalink", "masks")} for c in L["claims"]],
-                "marks": L["marks"], "no_mentions": L["rules"].get("no_mentions", False), "user": L["user"]})
+                "marks": L["marks"], "no_mentions": L["rules"].get("no_mentions", False), "user": L["user"],
+                "allows": sorted([a["what"], a["line"]] for a in L.get("allows", []))})
 
 
 def need(cond, why: str) -> list[str]:
@@ -240,7 +247,7 @@ def g_draft(L, h):
     if not d:
         return ["no draft checked: `draft check FILE`"]
     return (need(d.get("sha") == h, "the draft changed since the last `draft check`")
-            + need(d.get("inputs") == inputs_sha(L), "claims, marks or rules changed since the last `draft check`")
+            + need(d.get("inputs") == inputs_sha(L), "claims, marks, rules or allows changed since the last `draft check`")
             + need(d.get("passed"), f"`draft check` failed: {', '.join(d.get('failures', []))}"))
 
 
@@ -386,6 +393,116 @@ def visible(body: str) -> list[str]:
     return lines
 
 
+# --------------------------------------------------------------------------
+# Privacy: what a post tells about the user that the maintainer does not
+# need. Four kinds, matched per line of the title and body:
+#   usage    an absolute volume of the user's own use: a count of 10 or more
+#            tokens, calls, requests, sessions, transcripts, prompts or
+#            messages; money; time spent. A per-unit or summary figure in the
+#            same clause ("per call", "on average", "median") passes, but not
+#            a rate in time ("per month"). Below 10 a count is a repro step.
+#   tier     a plan name or a premium model family, which tells what the user
+#            pays for. The disclosure line names the authoring model by rule,
+#            so it is exempt unless the config sets "model": "family".
+#   private  a home path, an e-mail address, the local login and host name,
+#            and the config's private terms (project, repo, person names).
+#   host     an IP address, a LAN or tailnet host name, a user@host: prompt.
+# Quoted upstream text (`>` lines) and an envelope (To:, Reply-To:) pass.
+# Each flag holds the gate until the user allows it by name; an allow binds
+# to the flagged span and the line it stands in, so editing that line asks
+# again. Pure: the config and the auto-detected names come in as ``P``.
+# --------------------------------------------------------------------------
+
+NUM = r"(?<![\w.,#/@$€£:-])(?P<n>\d{1,3}(?:,\d{3})+|\d+)(?P<frac>\.\d+)?(?:\s?(?P<mult>[kKM]|thousand|million|billion))?(?![\w%/:-]|[.,]\d)"
+NOUNS = r"(?i:(?:transcript|session|log)\s+files?|tokens?|calls?|requests?|sessions?|transcripts?|conversations?|prompts?|messages?|subagents?)\b"
+USAGE = [re.compile(NUM + r"(?:\s+[A-Za-z'-]+){0,3}?\s+" + NOUNS),
+         re.compile(r"(?<![\w-])" + NOUNS + r"\s*[:=]\s*" + NUM)]
+MONEY = re.compile(r"(?<![\w$])[$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKM]\b)?|\b\d[\d,]*(?:\.\d+)?\s?(?i:USD|EUR|GBP|dollars?|euros?)\b")
+SPENT = re.compile(NUM + r"\s?(?i:h|hrs?|hours?|days?|weeks?|months?|years?)\b")
+CLAUSE = re.compile(r"[;()\[\]]|[,.:](?=\s|$)")
+PER = re.compile(r"\b(per|each|every|average|avg|mean|median|typical|max|maximum|minimum|limit|window|context|p\d\d)\b|/(?=[A-Za-z])", re.I)
+PER_TIME = re.compile(r"\b(per|a|an|each|every)\s+(day|week|month|year|hour)\b|/(day|week|month|year|mo|yr|h)\b", re.I)
+PERSONAL = re.compile(r"\b(spent|spend|spending|worked|working|used|using|of use|usage|daily|a day|a week|per day|per week|every day)\b", re.I)
+TIERS = [r"\b(?:Claude|ChatGPT|Gemini|Copilot|Cursor|Grok|Perplexity|Windsurf|Codex)\s+(?:Pro|Max|Plus|Ultra|Team|Business|Enterprise|Premium|Advanced|Heavy)\b\+?",
+         r"\b(?:Pro|Max|Plus|Ultra|Premium)\s+(?:plan|tier|subscription|seat)s?\b", r"\bMax\s?(?:5|20)x\b", r"\bSuperGrok\b",
+         r"\bclaude-(?:fable|opus)[\w.-]*", r"\b(?:Fable|Opus)\b(?:[\s-]\d+(?:\.\d+)*)?", r"\b(?:o\d|gpt-[\w.]+)-pro\b", r"\bDeep\s?Think\b"]
+PRIVATE = [re.compile(r"(?<![\w.~-])/(?:Users|home)/(?!(?:user|me|you|runner|name|username|example|USER)\b)[\w.-]+"),
+           re.compile(r"\b[A-Za-z]:\\Users\\[\w.-]+"), re.compile(r"/(?:private/)?var/folders/[\w/.+-]+"), re.compile(r"-Users-[\w.]+-")]
+EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
+HOSTS = [re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.])"),
+         re.compile(r"(?<![\w:])(?:[0-9A-Fa-f]{1,4}:){5,7}[0-9A-Fa-f]{1,4}(?![\w:])"),
+         re.compile(r"\b[\w-]+(?:\.[\w-]+)*\.(?:local|lan|localdomain|home\.arpa|ts\.net)\b(?![\w(-]|\s*=)"),
+         re.compile(r"\b[\w.-]+@[\w.-]+:[~/]")]
+PUBLIC_IP = re.compile(r"^(127\.|0\.0\.0\.0$|255\.255\.255\.255$|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.)")
+COMMON_NAMES = {"root", "user", "admin", "runner", "dev", "test", "guest", "vagrant", "pi", "ec2-user", "nobody", "localhost",
+                "macbook", "macbook-pro", "macbook-air", "imac", "mac-mini", "mac-studio", "raspberrypi", "ubuntu", "debian", "fedora"}
+KINDS = ("usage", "tier", "private", "host")
+
+
+def clause(line: str, m: re.Match) -> str:
+    """The clause around a match: from the last , ; . ( before it to the
+    next, so "mean 1,234 per call" passes and "read 52,000 tokens, mean
+    1,234 per call" does not."""
+    start = max((c.end() for c in CLAUSE.finditer(line, 0, m.start())), default=0)
+    end = next((c.start() for c in CLAUSE.finditer(line, m.end())), len(line))
+    return line[start:end]
+
+
+def per_unit(line: str, m: re.Match) -> bool:
+    c = clause(line, m)
+    return bool(PER.search(c)) and not PER_TIME.search(c)
+
+
+def volume(m: re.Match) -> float:
+    mult = {"k": 1e3, "K": 1e3, "M": 1e6, "thousand": 1e3, "million": 1e6, "billion": 1e9}.get(m["mult"] or "", 1)
+    return float(m["n"].replace(",", "") + (m["frac"] or "")) * mult
+
+
+def spans(line: str, P: dict, kinds=KINDS, prose: bool = True, tiers: bool = True) -> list[tuple[int, int, str]]:
+    """What ``line`` gives away, as (start, end, kind), overlaps resolved to
+    the longest match. Money only in prose: `$1` in a shell line is code."""
+    terms = [re.compile(rf"(?<![\w-]){re.escape(t)}(?![\w-])", re.I) for t in P.get("private", [])]
+    rules = [("usage", rx, lambda l, m: volume(m) >= 10 and not per_unit(l, m)) for rx in USAGE]
+    inline = [c.span() for c in re.finditer(r"`[^`\n]*`", line)]
+    rules += [("usage", MONEY, lambda l, m: prose and not per_unit(l, m) and not any(a <= m.start() < b for a, b in inline)),
+              ("usage", SPENT, lambda l, m: bool(PERSONAL.search(clause(l, m))))]
+    rules += [("tier", re.compile(t, re.I), lambda l, m: tiers) for t in (P.get("tiers") or TIERS)]
+    rules += [("private", rx, lambda l, m: True) for rx in PRIVATE + terms]
+    rules += [("private", EMAIL, lambda l, m: not re.search(r"noreply|@example\.(com|org|net)$", m[0], re.I))]
+    rules += [("host", rx, lambda l, m: not PUBLIC_IP.match(m[0])) for rx in HOSTS]
+    found = sorted(((m.start(), m.end(), k) for k, rx, ok in rules if k in kinds for m in rx.finditer(line) if ok(line, m)),
+                   key=lambda s: (s[0], s[0] - s[1]))
+    out = []
+    for s in found:
+        if not out or s[0] >= out[-1][1]:
+            out.append(s)
+    return out
+
+
+def privacy_flags(title: str | None, body: str, P: dict) -> list[dict]:
+    """Every flagged span in the posted text: {kind, what, line}, where
+    ``line`` is the sha256 of the whitespace-normalised line it stands in."""
+    vis = visible(body)
+    disclosure = vis[0].strip() if vis and DISCLOSURE.search(vis[0]) else None
+    flags, code = [], False
+    for line in ([title] if title else []) + body.splitlines():
+        s = line.strip()
+        if FENCE_LINE.match(line):
+            code = not code
+            continue
+        if not code and (s.startswith(">") or ENVELOPE.match(s)):
+            continue
+        for a, b, kind in spans(line, P, prose=not code, tiers=s != disclosure or P.get("model") == "family"):
+            flags.append({"kind": kind, "what": line[a:b], "line": sha(norm(line).encode())})
+    return flags
+
+
+def open_flags(flags: list[dict], L: dict) -> list[dict]:
+    """The flags no allow covers: an allow names the span and its line."""
+    allowed = {(a["what"], a["line"]) for a in L.get("allows", [])}
+    return [f for f in flags if (f["what"], f["line"]) not in allowed]
+
+
 def check_draft(text: str, L: dict) -> list[tuple[str, bool, str]]:
     """Every symbolic check on a draft, as (name, passed, detail)."""
     user, quiet = L["user"], L["rules"].get("no_mentions", False)
@@ -402,6 +519,9 @@ def check_draft(text: str, L: dict) -> list[tuple[str, bool, str]]:
     words = [f"'{m.group(0)}' in \"{l.strip()[:60]}\"" for l in prose.splitlines() for m in FORBIDDEN.finditer(l)]
     cited = [n for n, m in L["marks"].items() if m["mark"] != "unrelated"
              and not re.search(rf"(#{n}\b|/(issues|pull)/{n}\b)", body)]
+    flags = privacy_flags(title, body, L.get("privacy") or {})
+    held = open_flags(flags, L)
+    said = lambda fs: "; ".join(f'{f["kind"]} "{f["what"]}"' for f in fs)
     checks = [
         ("title", L["channel"] not in ("issue", "pr") or bool(title), "first line `# Title`" if not title else title),
         ("disclosure first", bool(DISCLOSURE.search(first)), first[:100]),
@@ -415,6 +535,8 @@ def check_draft(text: str, L: dict) -> list[tuple[str, bool, str]]:
         ("no hedging words", not words, "; ".join(words[:5]) or "none"),
         ("related line", bool(RELATED.search(prose)), "a `Related:` line, or `Related: none found by <command>`"),
         ("related cited", not cited, f"marked related/duplicate but not cited: {cited}" if cited else "ok"),
+        ("private details", not held, f"{said(held)}: a ratio, a per-unit figure or no name instead, or the user's yes to each: "
+         "`approve --by @HANDLE --allow SPAN --why ...`" if held else f"allowed by the user: {said(flags)}" if flags else "none"),
     ]
     if L.get("list"):
         tags = sorted({m.group(0) for m in HTML_TAG.finditer(prose)})
@@ -581,6 +703,12 @@ def require(L: dict, w: Work, at_least: str, exactly: bool = False):
         raise Refused(f"state is `{s}`, this needs `{at_least}`. Missing: " + "; ".join(missing or ["-"]))
 
 
+def allowed(L: dict) -> list[dict]:
+    """The allows that cover a flag on the last checked draft."""
+    cur = {(f["what"], f["line"]) for f in (L.get("draft") or {}).get("flags", [])}
+    return [x for x in L.get("allows", []) if (x["what"], x["line"]) in cur]
+
+
 def status_text(L: dict, w: Work) -> str:
     s, missing = derive(L, w.draft_sha(L))
     lines = [f"{L['repo']} · {L['channel']}{' #' + str(L['thread']) if L.get('thread') else ''} · state: {s} ({STATES[s][0]})"]
@@ -593,6 +721,7 @@ def status_text(L: dict, w: Work) -> str:
         lines.append(f"judge: not judged ({j.get('reason')})")
     if L["rules"].get("no_mentions"):
         lines.append(f"deviation: the house rules forbid mentions, so the handle is written without @ ({L['user']})")
+    lines += [f'allowed by {x["by"]}: {x["kind"]} "{x["what"]}" ({x["why"]})' for x in allowed(L)]
     return "\n".join(lines)
 
 
@@ -783,6 +912,26 @@ def cmd_env(a, w: Work):
     return L
 
 
+def privacy_config(L: dict) -> dict:
+    """The privacy terms in force, read once at the edge: the config file
+    (``UPSTREAM_CONFIG``, else ``~/.config/upstream/config.json``) with
+    "private" terms, "tiers" regexes that replace the defaults and "model":
+    "full" (default) or "family" for the disclosure line; plus the login and
+    host name, which a path or a prompt in pasted output gives away."""
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    path = Path(os.environ.get("UPSTREAM_CONFIG") or base / "upstream" / "config.json")
+    cfg = json.loads(path.read_text()) if path.is_file() else {}
+    try:
+        assert set(cfg) <= {"private", "tiers", "model"} and cfg.get("model", "full") in ("full", "family")
+        [re.compile(t) for t in cfg.get("tiers") or []]
+    except (AssertionError, re.error, TypeError) as e:
+        raise Refused(f"{path}: keys private (terms), tiers (regexes), model (full|family): {e or sorted(cfg)}")
+    login = os.environ.get("USER") or os.environ.get("LOGNAME") or getpass.getuser()
+    host = (os.environ.get("HOSTNAME") or socket.gethostname()).split(".")[0]
+    auto = [t for t in (login, host) if len(t) >= 3 and t.lower() not in COMMON_NAMES | {L["user"].lower()}]
+    return {"private": list(dict.fromkeys(cfg.get("private", []) + auto)), "tiers": cfg.get("tiers"), "model": cfg.get("model", "full")}
+
+
 def render(body: str, repo: str, w: Work) -> dict:
     """GitHub's own rendering, to count what a reader sees; any failure
     (no gh, not GitHub, a 404) is a note, not a block."""
@@ -799,6 +948,7 @@ def cmd_draft(a, w: Work):
     require(L, w, "draft")
     path = Path(a.file).resolve()
     text = path.read_text()
+    L["privacy"] = privacy_config(L)
     checks = check_draft(text, L)
     title, body = split_title(text, L["channel"])
     (w.dir / "body.md").write_text(body)
@@ -811,7 +961,8 @@ def cmd_draft(a, w: Work):
     rendered = render(body, L["repo"], w)
     failures = [n for n, ok, _ in checks if not ok]
     L["draft"] = {"path": str(path), "sha": sha(text.encode()), "inputs": inputs_sha(L), "title": title,
-                  "passed": not failures, "failures": failures, "render": rendered, "at": now()}
+                  "passed": not failures, "failures": failures, "flags": privacy_flags(title, body, L["privacy"]),
+                  "render": rendered, "at": now()}
     w.log(L, f"draft check {'passed' if not failures else 'FAILED: ' + ', '.join(failures)}")
     for n, ok, detail in checks:
         print(f"{'PASS' if ok else 'FAIL'}  {n}: {detail}")
@@ -909,7 +1060,8 @@ def cmd_judge(a, w: Work):
         j["reason"] = llm_why if backend else f"{why}; {llm_why}"
     else:
         request = {"instructions": JUDGE_PROMPT.replace("OWNER/REPO", L["repo"]), "draft": body,
-                   "contract_lines": contract_lines(body), "ledger": [ledger_entry(c) for c in L["claims"]], "flagged": flagged}
+                   "contract_lines": contract_lines(body), "ledger": [ledger_entry(c) for c in L["claims"]], "flagged": flagged,
+                   "allowed": sorted({x["what"] for x in allowed(L)})}
         j["llm"] = judge_cmd
         j["findings"] = [{"n": k, **f} for k, f in enumerate(llm_judge(judge_cmd, request), 1)]
         j["status"] = "judged"
@@ -935,6 +1087,19 @@ def cmd_approve(a, w: Work):
     L = w.load()
     if a.by.lstrip("@").lower() != L["user"].lower():
         raise Refused(f"only the user @{L['user']} approves; got {a.by}")
+    if a.allow:  # the user's yes to one flagged detail, bound to the line it stands in
+        require(L, w, "draft")
+        d = L.get("draft") or {}
+        if a.for_file or d.get("sha") != w.draft_sha(L):
+            raise Refused("--allow takes a span the last `draft check` flagged on this draft: run `draft check` first")
+        hits = [f for f in d.get("flags", []) if f["what"] == a.allow]
+        if not hits:
+            raise Refused(f"\"{a.allow}\" is not flagged; flagged: " + (", ".join(sorted({f'"{f["what"]}"' for f in d["flags"]})) or "nothing"))
+        keys = {(f["what"], f["line"]) for f in hits}
+        L["allows"] = [x for x in L.get("allows", []) if (x["what"], x["line"]) not in keys] + [
+            f | {"why": a.why, "by": a.by, "at": now()} for f in hits]
+        w.log(L, f"allowed by {a.by}: {hits[0]['kind']} \"{a.allow}\" on {len(hits)} line(s): {a.why}")
+        return L
     if a.for_file:
         require(L, w, "rules")
         path = Path(a.for_file).resolve()
@@ -995,6 +1160,7 @@ def cmd_post(a, w: Work):
     with (w.dir / "RECORD.md").open("a") as f:
         f.write(f"- {now()} {L['channel']} {url} posted as {a.account}; author {author}; "
                 f"draft sha256 {d['sha'][:12]}; approved by {L['approval']['by']}; "
+                + "".join(f'allowed "{x["what"]}"; ' for x in allowed(L)) +
                 f"gh active account still {L['user']}: {L['post']['user_still_active']}\n")
     w.log(L, f"posted {url} author={author}")
     print(url)
@@ -1136,6 +1302,8 @@ def main(argv=None):
     p = sub.add_parser("approve")
     p.add_argument("--by", required=True)
     p.add_argument("--for", dest="for_file", help="the file whose text the user approved in chat")
+    p.add_argument("--allow", help="a span `draft check` flagged as private, which the user's yes names")
+    p.add_argument("--why", help="with --allow: why the post needs it")
     p = sub.add_parser("post")
     p.add_argument("--account", required=True)
     p.add_argument("--head", help="for a PR: the branch, OWNER:BRANCH")
@@ -1162,9 +1330,10 @@ def main(argv=None):
                           ("outcome", a.command == "rules" and a.action == "classify"),
                           ("form", a.command == "rules" and a.action == "classify"),
                           ("reason", a.command == "judge" and a.action == "override"),
-                          ("why", a.command == "search" and a.action == "mark")):
+                          ("why", a.command == "search" and a.action == "mark"),
+                          ("why", a.command == "approve" and a.allow)):
         if need_it and not getattr(a, flag):
-            ap.error(f"{a.command} {a.action} needs --{flag}")
+            ap.error(f"{a.command} {getattr(a, 'action', '')} needs --{flag}")
     run = {"init": cmd_init, "rules": cmd_rules, "search": cmd_search, "claim": cmd_claim, "env": cmd_env,
            "draft": cmd_draft, "judge": cmd_judge, "approve": cmd_approve, "post": cmd_post, "fork": cmd_fork}
     if a.command == "claim" and a.action == "rm" and a.n is None:

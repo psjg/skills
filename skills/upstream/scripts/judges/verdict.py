@@ -5,7 +5,7 @@
     verdict.py extract < model-output   > verdict.json  always a valid verdict
 
 ``prompt`` turns upstream.py's JSON request (instructions, draft, ledger,
-flagged sentences) into one plain-text prompt. ``extract`` finds the first
+flagged sentences, allowed details) into one plain-text prompt. ``extract`` finds the first
 balanced JSON object carrying a ``findings`` list in whatever the model
 printed, and fails closed: no such object is one blocking finding, "judge
 output unparseable". Both reuse upstream.py's own definitions, so the
@@ -23,6 +23,7 @@ if sys.argv[1:] == ["prompt"]:
     print(req["instructions"], "\nDo not run tools or edit files; answer from the text below only.\n",
           "CONTRACT LINES (required boilerplate: never judge or quote these):\n"
           + json.dumps(req.get("contract_lines", []), indent=1),
+          "ALLOWED (details the user approved for posting: never flag these):\n" + json.dumps(req.get("allowed", [])),
           "DRAFT:\n" + req["draft"], "LEDGER (claims with their commands and captured output):\n"
           + json.dumps(req["ledger"], indent=1), "FLAGGED:\n" + json.dumps(req["flagged"], indent=1), sep="\n")
 elif sys.argv[1:] == ["extract"]:
