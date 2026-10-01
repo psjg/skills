@@ -497,6 +497,19 @@ def privacy_flags(title: str | None, body: str, P: dict) -> list[dict]:
     return flags
 
 
+def scrub(text: str, P: dict, keep: set) -> str:
+    """``text`` with its paths, e-mail, user and host names replaced by
+    ``<private>``, except what the user allowed: what a judge receives of a
+    claim, whose output can say more than the draft. Numbers stay; the judge
+    checks the draft's against them."""
+    out = []
+    for line in text.split("\n"):
+        for a, b, _ in reversed(spans(line, P, kinds=("private", "host"))):
+            line = line if line[a:b] in keep else line[:a] + "<private>" + line[b:]
+        out.append(line)
+    return "\n".join(out)
+
+
 def open_flags(flags: list[dict], L: dict) -> list[dict]:
     """The flags no allow covers: an allow names the span and its line."""
     allowed = {(a["what"], a["line"]) for a in L.get("allows", [])}
@@ -573,7 +586,8 @@ def sentences(body: str, L: dict) -> list[str]:
 
 def ledger_entry(c: dict) -> dict:
     """A claim as any judge sees it: the posted sentence, the command line,
-    its capped output and the permalink. Nothing else leaves the machine."""
+    its capped output and the permalink, after ``scrub``. Nothing else
+    leaves the machine."""
     return {"id": c["id"], "sentence": c["text"], "command": c["cmd"], "output": c["output"][:4000],
             "permalink": c.get("permalink") or ""}
 
@@ -1037,10 +1051,12 @@ def cmd_judge(a, w: Work):
         return L
     body = (w.dir / "body.md").read_text()
     sents = sentences(body, L)
+    P, keep = L.get("privacy") or {}, {x["what"] for x in allowed(L)}
+    claims = [c | {k: scrub(c[k], P, keep) for k in ("text", "cmd", "output")} for c in L["claims"]]
     backend, why = pick_backend(a.judge_model)
     decisions, flagged = [], []
     for s in sents if backend else []:
-        choice, noul = decision_requests(s, L["claims"])
+        choice, noul = decision_requests(s, claims)
         ans = decide(backend, choice)
         entry, p = ans.get("choice", "none"), None
         if entry != "none":
@@ -1060,7 +1076,7 @@ def cmd_judge(a, w: Work):
         j["reason"] = llm_why if backend else f"{why}; {llm_why}"
     else:
         request = {"instructions": JUDGE_PROMPT.replace("OWNER/REPO", L["repo"]), "draft": body,
-                   "contract_lines": contract_lines(body), "ledger": [ledger_entry(c) for c in L["claims"]], "flagged": flagged,
+                   "contract_lines": contract_lines(body), "ledger": [ledger_entry(c) for c in claims], "flagged": flagged,
                    "allowed": sorted({x["what"] for x in allowed(L)})}
         j["llm"] = judge_cmd
         j["findings"] = [{"n": k, **f} for k, f in enumerate(llm_judge(judge_cmd, request), 1)]

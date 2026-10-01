@@ -115,6 +115,13 @@ Related: #12 (closed) is about trailing whitespace, a different bug.
         (self.work / "draft.md").write_text(text)
         return text
 
+    def capture_judge(self) -> str:
+        """A judge that saves its JSON request to request.json and finds nothing."""
+        capture = self.tmp / "capture-judge"
+        capture.write_text(f"#!/bin/sh\ncat > {self.tmp / 'request.json'}\necho '{{\"findings\": []}}'\n")
+        capture.chmod(0o755)
+        return str(capture)
+
     def walk_to_draft(self, channel=("--channel", "issue")):
         self.up("init", REPO, *channel, "--user", "@psjg")
         self.up("rules", "--local", "tinyparse")
@@ -333,10 +340,7 @@ class Flow(Base):
         (self.work / "draft.md").write_text(f"# parse_line drops a trailing empty field\n\n{disclosure}\n\n{CLAIM}\n"
                                             f"The guard: {self.link}\n\n{env}\n\n{related}\n\n{FOOTER}\n")
         self.up("draft", "check", "draft.md")
-        capture = self.tmp / "capture-judge"
-        capture.write_text(f"#!/bin/sh\ncat > {self.tmp / 'request.json'}\necho '{{\"findings\": []}}'\n")
-        capture.chmod(0o755)
-        self.up("judge", "--judge-cmd", str(capture))
+        self.up("judge", "--judge-cmd", self.capture_judge())
         self.assertEqual(self.state()["state"], "approval")
         req = json.loads((self.tmp / "request.json").read_text())
         self.assertEqual(req["contract_lines"], [disclosure, related, env, FOOTER])
@@ -502,16 +506,26 @@ After 2 tool calls the hook fires; the full suite takes 3 hours.
         self.assertIn('FAIL  private details: usage "61,300,000 input tokens"', self.up("draft", "check", "draft.md"))
         self.write_draft(extra=f"\n{self.TOKENS}\n")
         self.up("draft", "check", "draft.md")
-        capture = self.tmp / "capture-judge"
-        capture.write_text(f"#!/bin/sh\ncat > {self.tmp / 'request.json'}\necho '{{\"findings\": []}}'\n")
-        capture.chmod(0o755)
-        self.up("judge", "--judge-cmd", str(capture))
+        self.up("judge", "--judge-cmd", self.capture_judge())
         req = json.loads((self.tmp / "request.json").read_text())
         self.assertEqual(req["allowed"], ["61,300,000 input tokens"])
         self.assertIn("private:", req["instructions"])
         self.up("approve", "--by", "@psjg")
         self.up("post", "--account", "psjg-claude")
         self.assertIn('allowed "61,300,000 input tokens"', (self.work / "upstream" / "RECORD.md").read_text())
+
+    def test_judge_sees_no_private_output(self):
+        """A claim's output may name more than the draft does: a judge gets
+        it with paths and host names replaced, the numbers kept."""
+        self.walk_to_draft()
+        self.up("claim", "add", "--text", "The run wrote 3 records.", "--no-permalink", "a local run",
+                "--cmd", "echo 'wrote 3 records to /Users/fixture-login/out.db on fixture-host.local'")
+        self.write_draft(extra="\nThe run wrote 3 records.\n")
+        self.up("draft", "check", "draft.md")
+        self.up("judge", "--judge-cmd", self.capture_judge())
+        req = json.loads((self.tmp / "request.json").read_text())
+        self.assertEqual(req["ledger"][1]["output"], "wrote 3 records to <private>/out.db on <private>\n")
+        self.assertNotIn("fixture-login", json.dumps(req))
 
     def test_config_terms_and_model_family(self):
         self.walk_to_draft()
