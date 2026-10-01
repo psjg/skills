@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -449,16 +450,29 @@ class Flow(Base):
 
 class Privacy(Base):
     """The privacy pass: what a post tells about the user beyond what the
-    maintainer needs holds the gate until the user allows it by name."""
-    LEAKS = {"usage": ("The agent read 61,300,000 input tokens across 812 sessions.",
-                       [("usage", "61,300,000 input tokens"), ("usage", "812 sessions")]),
-             "minutes": ("Within 5 min the agent sent 2,000 requests.", [("usage", "2,000 requests")]),
-             "tier": ("The reviewer ran on ChatGPT Pro with Opus 9.", [("tier", "ChatGPT Pro"), ("tier", "Opus 9")]),
+    maintainer needs holds the gate until the user allows it by name. Every
+    figure here is made up."""
+    LEAKS = {"usage": ("The agent read 61,300,000 input tokens across 812 sessions.", [("usage", "61,300,000"), ("usage", "812")]),
+             "minutes": ("Within 5 min the agent sent 2,316 requests.", [("usage", "2,316")]),
+             "markdown": ("Over the run **4,513** calls read `9,207,331` input tokens.", [("usage", "4,513"), ("usage", "9,207,331")]),
+             "table": ("| metric | value |\n|---|---|\n| tool calls | 3,917 |\n| input tokens | 52.417.309 |",
+                       [("usage", "3,917"), ("usage", "52.417.309")]),
+             "bare": ("Of 413 pairs of consecutive calls, 289 (70%) were close and 57 had 2.",
+                      [("usage", "413"), ("usage", "289"), ("usage", "57")]),
+             "each": ("Each of the 593 calls missed the cache: 52,4M tokens, or 5.2e7.",
+                      [("usage", "593"), ("usage", "52,4M"), ("usage", "5.2e7")]),
+             "money": ("I pay 20 bucks a month; the bill says USD 20.", [("usage", "20 bucks"), ("usage", "USD 20")]),
+             "spent": ("I use it 40 hours a week.", [("usage", "40 hours")]),
+             "tier": ("The reviewer ran on ChatGPT Pro with Opus 9 on our Team plan, API tier 4.",
+                      [("tier", "ChatGPT Pro"), ("tier", "Opus 9"), ("tier", "Team plan"), ("tier", "API tier 4")]),
              "private": ("The log is at /Users/fixture-login/work/run.log; mail fixture.person@mailhost.example.net.",
                          [("private", "/Users/fixture-login"), ("private", "fixture.person@mailhost.example.net")]),
              "names": ("Built on fixture-host by fixture-login.", [("private", "fixture-host"), ("private", "fixture-login")]),
-             "host": ("It runs on 10.20.30.40, also known as fixture-host.local.", [("host", "10.20.30.40"), ("host", "fixture-host.local")]),
-             "output": ("```\n$ tally\ntokens: 61,300,000\n```", [("usage", "tokens: 61,300,000")])}
+             "host": ("It runs on 10.20.30.40, also known as fixture-host.local, fd00::4a1b or nas.fritz.box.",
+                      [("host", "10.20.30.40"), ("host", "fixture-host.local"), ("host", "fd00::4a1b"), ("host", "nas.fritz.box")]),
+             "output": ("```\n$ tally\ntokens: 61,300,000\nby model: alpha 4,519, beta 83\n```",
+                        [("usage", "61,300,000"), ("usage", "4,519"), ("usage", "83")]),
+             "quote": ("> On my side it is 2,400,000 tokens a day.", [("usage", "2,400,000")])}
     TOKENS = "The agent read 61,300,000 input tokens."
 
     def test_each_kind_blocks(self):
@@ -473,46 +487,86 @@ class Privacy(Base):
                 self.assertEqual(self.state()["state"], "draft")
                 self.up("judge", "--judge-cmd", "none", ok=False)  # nothing leaves for a judge either
 
-    def test_ratios_versions_references_pass(self):
+    def test_ratios_limits_and_parameters_pass(self):
         self.walk_to_draft()
         self.write_draft(extra="""
-64% of runs from 2026-03-02 to 2026-03-30 missed the cache; a call reads 90k tokens on average (median 75k).
+58% of runs from 2026-03-02 to 2026-03-30 missed the cache; a call reads 90k tokens on average (median 75k, max 140k).
 tinyparse 0.4.1 and 0.5.0 both show it; see #12, and the fix costs $0.40 per call.
 After 2 tool calls the hook fires; the full suite takes 3 hours.
 
-> On my side it is 2,400,000 tokens a day on the Max plan.
+The docs allow 5,000 requests per hour; 1 in 10 calls fails, 12 of 100 calls retry, a burst of 1,000 messages stalls.
+A fixture of 64 prompts reproduces it: exit code 137, HTTP 429, line 4096.
+
+```python
+WINDOW = 3600
+print(f"calls: {n}")
+```
 """)
         self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))
         self.assertEqual(self.state()["state"], "judged")
 
+    def test_disclosure_names_the_model_not_the_plan(self):
+        self.walk_to_draft()
+        self.write_draft(disclose=DISCLOSE.replace("Opus 5.5,", "Opus 5.5, on a Claude Max plan,"))
+        out = self.up("draft", "check", "draft.md")
+        self.assertIn('tier "Claude Max"', out)
+        self.assertNotIn('"Claude Opus 5.5"', out)
+        wrapped = ("*Written by an AI agent for {h} (Claude Code, reasoning effort high, model Claude\n"
+                   "Opus 5.5), who ran its commands and approved posting.*")
+        self.write_draft(disclose=wrapped)
+        self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))
+
     def test_allow_binds_to_the_line(self):
         self.walk_to_draft()
         self.write_draft(extra=f"\n{self.TOKENS}\n")
-        allow = ["approve", "--by", "@psjg", "--allow", "61,300,000 input tokens", "--why", "the maintainer asked for the total"]
+        allow = ["approve", "--by", "@psjg", "--allow", "61,300,000", "--why", "the maintainer asked for the total"]
         self.up(*allow, ok=False)  # no check of this draft yet
         self.assertIn("FAIL  private details", self.up("draft", "check", "draft.md"))
         self.up("approve", "--by", "@maintainer", *allow[3:], ok=False)  # the user's yes only
-        self.assertIn("is not flagged", self.up(*allow[:4], "61,300,000", "--why", "x", ok=False))
+        self.assertIn("not flagged", self.up(*allow[:4], "61,300", "--why", "x", ok=False))
         self.up(*allow[:5], ok=False)  # --allow needs --why
         self.up(*allow)
         self.assertIn("allows changed", self.up("status"))
         out = self.up("draft", "check", "draft.md")
-        self.assertIn('PASS  private details: allowed by the user: usage "61,300,000 input tokens"', out)
-        self.assertIn('allowed by @psjg: usage "61,300,000 input tokens" (the maintainer asked for the total)', out)
+        self.assertRegex(out, r'PASS  private details: allowed by the user: L\d+ usage "61,300,000"')
+        self.assertIn('allowed by @psjg: usage "61,300,000" (the maintainer asked for the total)', out)
         # Another line changes: the allow holds. The flagged line changes: it is asked again.
         self.write_draft(extra=f"\n{self.TOKENS}\n\nSee #12.\n")
         self.assertIn("PASS  private details", self.up("draft", "check", "draft.md"))
         self.write_draft(extra="\nThe agent read 61,300,000 input tokens last week.\n")
-        self.assertIn('FAIL  private details: usage "61,300,000 input tokens"', self.up("draft", "check", "draft.md"))
+        self.assertRegex(self.up("draft", "check", "draft.md"), r'FAIL  private details: L\d+ usage "61,300,000"')
         self.write_draft(extra=f"\n{self.TOKENS}\n")
         self.up("draft", "check", "draft.md")
         self.up("judge", "--judge-cmd", self.capture_judge())
         req = json.loads((self.tmp / "request.json").read_text())
-        self.assertEqual(req["allowed"], ["61,300,000 input tokens"])
+        self.assertEqual(req["allowed"], ["61,300,000"])
         self.assertIn("private:", req["instructions"])
         self.up("approve", "--by", "@psjg")
         self.up("post", "--account", "psjg-claude")
-        self.assertIn('allowed "61,300,000 input tokens"', (self.work / "upstream" / "RECORD.md").read_text())
+        self.assertIn('allowed "61,300,000"', (self.work / "upstream" / "RECORD.md").read_text())
+
+    def test_allow_several_in_one_yes(self):
+        self.walk_to_draft()
+        self.write_draft(extra=f"\n{self.TOKENS}\n\nThe reviewer ran on ChatGPT Pro.\n")
+        self.assertIn("FAIL  private details", self.up("draft", "check", "draft.md"))
+        self.up("approve", "--by", "@psjg", "--allow", "61,300,000", "--allow", "nothing-such", "--why", "x", ok=False)
+        self.up("approve", "--by", "@psjg", "--allow", "61,300,000", "--allow", "ChatGPT Pro", "--why", "the maintainer asked")
+        self.assertIn("PASS  private details: allowed by the user", self.up("draft", "check", "draft.md"))
+
+    def test_judge_private_finding_blocks(self):
+        """A judge's private finding blocks even when the judge called it a
+        note: the backstop for what the symbolic pass misses."""
+        self.walk_to_draft()
+        self.write_draft()
+        self.up("draft", "check", "draft.md")
+        judge = self.tmp / "private-judge"
+        judge.write_text("#!/bin/sh\ncat >/dev/null\necho '{\"findings\": [{\"quote\": \"x\", \"kind\": \"private\", "
+                         "\"blocking\": false, \"why\": \"names a plan\"}]}'\n")
+        judge.chmod(0o755)
+        self.assertIn("BLOCKING private", self.up("judge", "--judge-cmd", str(judge)))
+        self.assertEqual(self.state()["state"], "judged")
+        self.up("judge", "override", "1", "--reason", "the user keeps it")
+        self.assertEqual(self.state()["state"], "approval")
 
     def test_judge_sees_no_private_output(self):
         """A claim's output may name more than the draft does: a judge gets
@@ -527,22 +581,69 @@ After 2 tool calls the hook fires; the full suite takes 3 hours.
         self.assertEqual(req["ledger"][1]["output"], "wrote 3 records to <private>/out.db on <private>\n")
         self.assertNotIn("fixture-login", json.dumps(req))
 
+    def test_login_that_is_a_word(self):
+        """A login or host name that is a plain word flags in code, where a
+        prompt or `ls -l` shows it, not in prose."""
+        self.walk_to_draft()
+        self.env |= {"USER": "will", "HOSTNAME": "work"}
+        self.write_draft(extra="\nThis will fail when the work is done.\n")
+        self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))
+        self.write_draft(extra="\n```\n$ ls -l\n-rw-r--r--  1 will  staff  12 run.log\n```\n")
+        self.assertIn('private "will"', self.up("draft", "check", "draft.md"))
+
     def test_config_terms_and_model_family(self):
         self.walk_to_draft()
         config = self.tmp / "config.json"
-        config.write_text(json.dumps({"private": ["fixture-secret-project"], "model": "family"}))
-        self.write_draft(extra="\nFound while porting fixture-secret-project.\n")
+        config.write_text(json.dumps({"private": ["fixture-secret"], "model": "family"}))
+        self.write_draft(extra="\nFound while porting fixture-secret-widgets and fixture_secret.\n")
         out = self.up("draft", "check", "draft.md")
-        self.assertIn('private "fixture-secret-project"', out)
-        self.assertIn('tier "Opus 5.5"', out)  # the full model name, under "model": "family"
+        self.assertIn('private "fixture-secret"', out)
+        self.assertIn('tier "Claude Opus 5.5"', out)  # the full model name, under "model": "family"
+        state = (self.work / "upstream" / "STATE.json").read_text()
+        for term in ("fixture-login", "fixture-host"):  # the terms themselves are never stored
+            self.assertNotIn(term, state)
+        config.write_text(json.dumps({"private": ["fixture-unsaid"]}))
         self.write_draft(disclose=DISCLOSE.replace("Claude Opus 5.5", "Claude"))
         self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))
+        self.assertNotIn("fixture-unsaid", (self.work / "upstream" / "STATE.json").read_text())
         config.write_text(json.dumps({"tiers": []}))  # an empty list turns the tier check off
         self.write_draft(extra="\nThe reviewer ran on ChatGPT Pro with Opus 9.\n")
         self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))
         for bad in ('{"privat": []}', '{"private": "one"}', '{"tiers": ["("]}', "{not json"):
             config.write_text(bad)
             self.assertIn("keys private", self.up("draft", "check", "draft.md", ok=False))
+
+
+class PrivacyPass(unittest.TestCase):
+    """``privacy_flags`` itself, without a world: its deliberate gap and its
+    cost."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(HERE))
+        import upstream
+        cls.U, cls.P = upstream, {"private": [], "auto": [], "tiers": None, "model": "full"}
+
+    def flags(self, text: str) -> list[str]:
+        return [f["what"] for f in self.U.privacy_flags(text, "comment", self.P)]
+
+    def test_a_round_total_passes(self):
+        """Round numbers read as chosen (a limit, a repro size), so a round
+        total passes unless the line says whose it is: the judge's private
+        lens covers this gap."""
+        self.assertEqual(self.flags("The agent made 300 sessions and 4,000 calls.\n"), [])
+        self.assertEqual(self.flags("My agent made 300 sessions and 4,000 calls.\n"), ["300", "4,000"])
+
+    def test_counts_only_where_ai_use_is_named(self):
+        self.assertEqual(self.flags("pytest: 413 passed, 12 failed\n"), [])
+        self.assertEqual(self.flags("pytest: 413 passed, 12 failed\n\n```\n413 calls\n```\n"), ["413"])
+
+    def test_linear_in_the_line(self):
+        start = time.monotonic()
+        for line in ("tokens " + "1," * 50000, "tokens " + "13 " * 30000, "a@" + "b." * 30000, "a." * 50000 + "@b:~",
+                     "`a` " * 20000 + "$17 " * 20000, "fd00:" * 20000, "x.local" * 10000):
+            self.U.privacy_flags(line, "comment", self.P)
+        self.assertLess(time.monotonic() - start, 5)
 
 
 class Fork(Base):
