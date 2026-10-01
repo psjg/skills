@@ -60,8 +60,8 @@ that entry's output establishes it (a Noul). A hosted model receives only the
 posted sentence and ledger entries reduced to (claim sentence, command line,
 capped output, permalink), with paths, e-mail, user and host names scrubbed:
 never the work dir, never shell history. The privacy pass runs in ``draft
-check``, before any judge, so a judge reads only details the user allowed. ``decision_requests`` is the one place such a
-request is built; a test pins its fields. (b) An adversarial LLM judge of
+check``, before any judge, so a judge reads only details the user allowed.
+``decision_requests`` is the one place such a request is built; a test pins its fields. (b) An adversarial LLM judge of
 another model family: any ``--judge-cmd`` executable that reads the JSON
 request on stdin and writes ``{"findings": [...]}`` on stdout. Adapters ship
 in ``judges/``: ``codex.sh`` (the default when ``codex`` is on PATH),
@@ -427,7 +427,7 @@ PERSONAL = re.compile(r"\b(spent|spend|spending|worked|working|used|using|of use
 TIERS = [r"\b(?:Claude|ChatGPT|Gemini|Copilot|Cursor|Grok|Perplexity|Windsurf|Codex)\s+(?:Pro|Max|Plus|Ultra|Team|Business|Enterprise|Premium|Advanced|Heavy)\b\+?",
          r"\b(?:Pro|Max|Plus|Ultra|Premium)\s+(?:plan|tier|subscription|seat)s?\b", r"\bMax\s?(?:5|20)x\b", r"\bSuperGrok\b",
          r"\bclaude-(?:fable|opus)[\w.-]*", r"\b(?:Fable|Opus)\b(?:[\s-]\d+(?:\.\d+)*)?", r"\b(?:o\d|gpt-[\w.]+)-pro\b", r"\bDeep\s?Think\b"]
-PRIVATE = [re.compile(r"(?<![\w.~-])/(?:Users|home)/(?!(?:user|me|you|runner|name|username|example|USER)\b)[\w.-]+"),
+PRIVATE = [re.compile(r"(?<![\w.~-])/(?:Users|home)/(?!(?:user|me|you|runner|name|username|example|USER|Shared)\b)[\w.-]+"),
            re.compile(r"\b[A-Za-z]:\\Users\\[\w.-]+"), re.compile(r"/(?:private/)?var/folders/[\w/.+-]+"), re.compile(r"-Users-[\w.]+-")]
 EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 HOSTS = [re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.])"),
@@ -467,7 +467,7 @@ def spans(line: str, P: dict, kinds=KINDS, prose: bool = True, tiers: bool = Tru
     inline = [c.span() for c in re.finditer(r"`[^`\n]*`", line)]
     rules += [("usage", MONEY, lambda l, m: prose and not per_unit(l, m) and not any(a <= m.start() < b for a, b in inline)),
               ("usage", SPENT, lambda l, m: bool(PERSONAL.search(clause(l, m))))]
-    rules += [("tier", re.compile(t, re.I), lambda l, m: tiers) for t in (P.get("tiers") or TIERS)]
+    rules += [("tier", re.compile(t, re.I), lambda l, m: tiers) for t in (TIERS if P.get("tiers") is None else P["tiers"])]
     rules += [("private", rx, lambda l, m: True) for rx in PRIVATE + terms]
     rules += [("private", EMAIL, lambda l, m: not re.search(r"noreply|@example\.(com|org|net)$", m[0], re.I))]
     rules += [("host", rx, lambda l, m: not PUBLIC_IP.match(m[0])) for rx in HOSTS]
@@ -935,12 +935,16 @@ def privacy_config(L: dict) -> dict:
     host name, which a path or a prompt in pasted output gives away."""
     base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     path = Path(os.environ.get("UPSTREAM_CONFIG") or base / "upstream" / "config.json")
-    cfg = json.loads(path.read_text()) if path.is_file() else {}
     try:
-        assert set(cfg) <= {"private", "tiers", "model"} and cfg.get("model", "full") in ("full", "family")
-        [re.compile(t) for t in cfg.get("tiers") or []]
-    except (AssertionError, re.error, TypeError) as e:
-        raise Refused(f"{path}: keys private (terms), tiers (regexes), model (full|family): {e or sorted(cfg)}")
+        cfg = json.loads(path.read_text()) if path.is_file() else {}
+        if not isinstance(cfg, dict) or set(cfg) - {"private", "tiers", "model"} or cfg.get("model", "full") not in ("full", "family"):
+            raise ValueError(f"got {json.dumps(cfg)[:120]}")
+        for k in ("private", "tiers"):
+            if not (isinstance(cfg.get(k, []), list) and all(isinstance(t, str) for t in cfg.get(k, []))):
+                raise ValueError(f"{k} is not a list of strings")
+        [re.compile(t) for t in cfg.get("tiers", [])]
+    except (ValueError, re.error) as e:
+        raise Refused(f"{path}: keys private (terms), tiers (regexes), model (full|family); {e}")
     login = os.environ.get("USER") or os.environ.get("LOGNAME") or getpass.getuser()
     host = (os.environ.get("HOSTNAME") or socket.gethostname()).split(".")[0]
     auto = [t for t in (login, host) if len(t) >= 3 and t.lower() not in COMMON_NAMES | {L["user"].lower()}]

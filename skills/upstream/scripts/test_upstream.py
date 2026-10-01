@@ -537,8 +537,12 @@ After 2 tool calls the hook fires; the full suite takes 3 hours.
         self.assertIn('tier "Opus 5.5"', out)  # the full model name, under "model": "family"
         self.write_draft(disclose=DISCLOSE.replace("Claude Opus 5.5", "Claude"))
         self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))
-        config.write_text(json.dumps({"privat": []}))
-        self.assertIn("keys private", self.up("draft", "check", "draft.md", ok=False))
+        config.write_text(json.dumps({"tiers": []}))  # an empty list turns the tier check off
+        self.write_draft(extra="\nThe reviewer ran on ChatGPT Pro with Opus 9.\n")
+        self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))
+        for bad in ('{"privat": []}', '{"private": "one"}', '{"tiers": ["("]}', "{not json"):
+            config.write_text(bad)
+            self.assertIn("keys private", self.up("draft", "check", "draft.md", ok=False))
 
 
 class Fork(Base):
