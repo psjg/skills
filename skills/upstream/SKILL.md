@@ -234,9 +234,10 @@ list), the handle from the user's instructions.
    percentages, as the claim's command prints them, not totals; name no
    plan, premium model, path, user or host. The check prints each such span
    and holds it until the user's yes names it: `upstream.py approve --by
-   @HANDLE --allow SPAN --why "..."`. `UPSTREAM_CONFIG` (default
-   `~/.config/upstream/config.json`) adds `private` terms, replaces the
-   `tiers` list and sets `model`.
+   @HANDLE --allow SPAN --why "..."`, `--allow` repeatable; the script
+   cannot tell who typed that, so only on that yes. `UPSTREAM_CONFIG`
+   (default `~/.config/upstream/config.json`) adds `private` terms, replaces
+   the `tiers` list and sets `model`.
 5. The checks above hold the first line to: an agent disclosure with model
    (its family only under `"model": "family"`), harness *and* reasoning
    effort ("reasoning effort not reported" if the runtime does not say), the
@@ -270,11 +271,11 @@ list), the handle from the user's instructions.
    sentence is supported when a claim's output shows it (a code line shown
    by grep or a diff counts); it flags sentences no claim bears on, causal
    or runtime claims resting only on a code reading, numbers in no output,
-   third-party mentions, private details and tone, and never judges the
-   contract lines (disclosure, Related, footer, an `**Environment.**`
-   paragraph), which the request marks as such. `--judge-cmd` is any
-   executable that reads the JSON request on stdin and prints
-   `{"findings": [...]}`, and `scripts/judges/` ships `codex.sh` (the
+   third-party mentions, private details (always blocking) and tone, and
+   never judges the contract lines (disclosure, Related, footer, an
+   `**Environment.**` paragraph), which the request marks as such.
+   `--judge-cmd` is any executable that reads the JSON request on stdin and
+   prints `{"findings": [...]}`, and `scripts/judges/` ships `codex.sh` (the
    default when `codex` is on PATH), `cursor.sh` (cursor-agent with Grok)
    and `stub.sh`. A verdict that does not parse, or a judge that fails, is a
    blocking finding. A blocking finding sends you back to the draft; the
