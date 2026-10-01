@@ -17,7 +17,7 @@ SKILL.md says *why*, this file says *whether*.
     upstream.py draft check draft.md
     upstream.py judge [--judge-cmd CMD] [--judge-model auto|jev|von|none]
     upstream.py judge override N --reason "..."
-    upstream.py approve --by @HANDLE
+    upstream.py approve --by @HANDLE [--for FILE | --allow SPAN --why "..."]
     upstream.py post --account MACHINE_ACCOUNT
     upstream.py fork --account MACHINE_ACCOUNT --branch B --patches DIR --base-tag TAG --author "..." --trailer "Assisted-By: ..."
     upstream.py status | graph --mermaid | graph --dot
@@ -58,8 +58,9 @@ decisions API with ``OPENROUTER_API_KEY``, or a local Von via ``import von``)
 answers, per sentence, which ledger entry supports it (a Choice) and whether
 that entry's output establishes it (a Noul). A hosted model receives only the
 posted sentence and ledger entries reduced to (claim sentence, command line,
-capped output, permalink): never the work dir, never a path outside the
-ledger, never shell history. ``decision_requests`` is the one place such a
+capped output, permalink), with paths, e-mail, user and host names scrubbed:
+never the work dir, never shell history. The privacy pass runs in ``draft
+check``, before any judge, so a judge reads only details the user allowed. ``decision_requests`` is the one place such a
 request is built; a test pins its fields. (b) An adversarial LLM judge of
 another model family: any ``--judge-cmd`` executable that reads the JSON
 request on stdin and writes ``{"findings": [...]}`` on stdout. Adapters ship
@@ -179,7 +180,7 @@ STATES = {
     "rules": ("1 House rules fetched, grepped and classified per channel", "step"),
     "search": ("2 Search issues and PRs, open and closed; mark every hit", "step"),
     "evidence": ("3 Every claim carries a command, its output and a permalink", "step"),
-    "draft": ("4-5 Write, disclosure first and footer last, render, re-run every command", "step"),
+    "draft": ("4-5 Write, disclosure first and footer last, nothing private unallowed, re-run every command", "step"),
     "judged": ("Judge: decision model, then an adversarial LLM of another family; unparseable blocks", "step"),
     "approval": ("6 The user's explicit yes to this exact text", "step"),
     "approved": ("7 Post as the machine account, verify the author, record the URL", "step"),

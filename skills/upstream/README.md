@@ -18,10 +18,12 @@ output and a commit-pinned link. What could not be run is left out, not
 hedged.
 
 The classic etiquette texts (Tatham, Raymond and Moen, Fogel, the
-kernel's *Submitting patches*) say most of the rest. Two things are this
-skill's addition: disclosure, because a reader decides how to read the
-rest from the first line; and a hard gate on posting, because "the user
-said file issues" is not a yes to this text.
+kernel's *Submitting patches*) say most of the rest. Three things are
+this skill's addition: disclosure, because a reader decides how to read
+the rest from the first line; a hard gate on posting, because "the user
+said file issues" is not a yes to this text; and privacy, because a
+usage total, a plan name or a home path tells the world about the user
+while a ratio makes the same point, so each waits for the user's yes.
 
 ## What it does
 
@@ -37,7 +39,7 @@ flowchart TD
     rules["1 House rules fetched, grepped and classified per channel"]
     search["2 Search issues and PRs, open and closed; mark every hit"]
     evidence["3 Every claim carries a command, its output and a permalink"]
-    draft["4-5 Write, disclosure first and footer last, render, re-run every command"]
+    draft["4-5 Write, disclosure first and footer last, nothing private unallowed, re-run every command"]
     judged["Judge: decision model, then an adversarial LLM of another family; unparseable blocks"]
     approval["6 The user's explicit yes to this exact text"]
     approved["7 Post as the machine account, verify the author, record the URL"]
@@ -66,10 +68,9 @@ flowchart TD
     forked -.->|"cite the fork in the draft"| draft
 ```
 
-The script is the only route to the forge. On the author's machines a
-PreToolUse hook denies `gh issue create`, `gh pr create`, `gh issue
-comment` and `gh repo fork` typed by hand, so the gate is hard rather
-than a request.
+The script is the only route to the forge. With a PreToolUse hook that
+denies `gh issue create`, `gh pr create`, `gh issue comment` and
+`gh repo fork` typed by hand, the gate is hard rather than a request.
 
 ## Layout
 

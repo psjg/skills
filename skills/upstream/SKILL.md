@@ -24,8 +24,7 @@ Run `scripts/upstream.py`; the states are the steps below. It keeps
 `STATE.json` in a work directory (`--workdir`, default `./upstream/`),
 refuses every transition whose artifacts do not exist yet, and is the only
 way to post. That is hard only together with a PreToolUse hook that denies
-`gh issue|pr create|comment` typed by hand (on psjg's machines,
-`deny-direct-gh-post`); the script's own gh calls carry
+`gh issue|pr create|comment` typed by hand; the script's own gh calls carry
 `GH_UPSTREAM_SCRIPT=1` so a hook or shim can tell them apart. The state
 is recomputed from the ledger and the draft's sha256 after every command, so
 an edit after approval sends the draft back through check, judge and
@@ -39,7 +38,7 @@ flowchart TD
     rules["1 House rules fetched, grepped and classified per channel"]
     search["2 Search issues and PRs, open and closed; mark every hit"]
     evidence["3 Every claim carries a command, its output and a permalink"]
-    draft["4-5 Write, disclosure first and footer last, render, re-run every command"]
+    draft["4-5 Write, disclosure first and footer last, nothing private unallowed, re-run every command"]
     judged["Judge: decision model, then an adversarial LLM of another family; unparseable blocks"]
     approval["6 The user's explicit yes to this exact text"]
     approved["7 Post as the machine account, verify the author, record the URL"]
@@ -83,7 +82,8 @@ $U claim add --text "<sentence as posted>" --cmd "<command>" --permalink URL
 $U env
 $U draft check draft.md
 $U judge
-$U approve --by @HANDLE                             # after the user's yes; --for FILE if it came first
+$U approve --by @HANDLE                             # after the user's yes; --for FILE if it came first;
+                                                    # --allow SPAN --why "..." for a span the check flagged
 $U post --account MACHINE_ACCOUNT
 $U status                                           # at any point: what the next step still needs
 ```
@@ -122,9 +122,11 @@ $U status                                           # at any point: what the nex
    instead. Say what could not be done (no build, no reproducer): the kernel
    asks for exactly that. A fix goes inline as a diff: reviewable where it
    is found, indexed with the issue, never a binary, which also answers
-   "could this be malware". Nothing about the drafting: if it is not
-   relevant to the maintainer, it goes. The draft's commands are what the
-   maintainer will paste, so run them again as written. Tatham, Raymond and
+   "could this be malware". Nothing about the drafting or the user: if it
+   is not relevant to the maintainer, it goes. A usage total or a premium
+   model's name tells what the user pays; a ratio makes the same point. The
+   draft's commands are what the maintainer will paste, so run them again
+   as written. Tatham, Raymond and
    Moen, Fogel and the kernel's *Submitting patches* said all this to people
    long before agents; for an agent, spend tokens before you spend
    maintainer minutes. Replies stay in their thread with the Subject kept,
@@ -208,10 +210,9 @@ list), the handle from the user's instructions.
    `git rev-parse HEAD`); where no link applies say so with
    `--no-permalink "why"`. `--mask REGEX` hides a timing from the re-run
    diff. `upstream.py env` records the machine (`sw_vers`, `sysctl`,
-   `uname`) or `env --text "MacBook Pro 14 (Mac15,3), M3, 16 GB, macOS 27.0
-   (26A428), Python 3.13.1"`; add the toolchain and how it differs from the
-   documented route. What you could not run is left out of the claims and
-   stated as not done.
+   `uname`) or `env --text "macOS 27.0, Python 3.13.1"`; add the toolchain
+   and how it differs from the documented route. What you could not run is
+   left out of the claims and stated as not done.
 4. Write the draft to a file: for an issue or PR the first line is
    `# <the observable behaviour>`, the title. Body: the disclosure line; a
    ~5-line summary (what, where with a permalink, why it matters, what you
@@ -229,14 +230,20 @@ list), the handle from the user's instructions.
    Related line, no HTML for a list; it renders through `gh api markdown`
    (counts of `<details>`, code blocks and mentions; skipped with a note
    where gh cannot render) and re-runs every claim's command, failing on any
-   changed output with the diff.
-5. The checks above hold the first line to: an agent disclosure with model,
-   harness *and* reasoning effort ("reasoning effort not reported" if the
-   runtime does not say), the user's `@handle`, and what the user did, at the
-   level that is true:
+   changed output with the diff. Write ratios, per-call figures and
+   percentages, as the claim's command prints them, not totals; name no
+   plan, premium model, path, user or host. The check prints each such span
+   and holds it until the user's yes names it: `upstream.py approve --by
+   @HANDLE --allow SPAN --why "..."`. `UPSTREAM_CONFIG` (default
+   `~/.config/upstream/config.json`) adds `private` terms, replaces the
+   `tiers` list and sets `model`.
+5. The checks above hold the first line to: an agent disclosure with model
+   (its family only under `"model": "family"`), harness *and* reasoning
+   effort ("reasoning effort not reported" if the runtime does not say), the
+   user's `@handle`, and what the user did, at the level that is true:
 
    > *Written by an AI agent (Claude Opus 5.5, Claude Code, reasoning effort
-   > max) for @psjg, who read the report and ran its commands, and approved
+   > max) for @HANDLE, who read the report and ran its commands, and approved
    > posting.*
 
    Other true levels: "reviewed it", "did not review the C++ line by line".
@@ -254,26 +261,27 @@ list), the handle from the user's instructions.
    project's own required form.
 
    `upstream.py judge` then reads the draft as the maintainer would. With an
-   `OPENROUTER_API_KEY` (Jev) or an importable Von, a decision model asks per
-   sentence which claim supports it and whether that claim's output
+   `OPENROUTER_API_KEY` (Jev) or an importable Von, a decision model asks
+   per sentence which claim supports it and whether that claim's output
    establishes it (`--noul-threshold`, default 0.9); a hosted model receives
    only the sentences and the claims (sentence, command, capped output,
-   permalink). An adversarial LLM of another family lists what the
-   maintainer would have to check, by one standard: a sentence is supported
-   when a claim's output shows it (a code line shown by grep or a diff
-   counts); it flags sentences no claim bears on, causal or runtime claims
-   resting only on a code reading, numbers in no output, third-party
-   mentions and tone, and never judges the contract lines (disclosure,
-   Related, footer, an `**Environment.**` paragraph), which the request marks
-   as such. `--judge-cmd` is any executable that
-   reads the JSON request on stdin and prints `{"findings": [...]}`, and
-   `scripts/judges/` ships `codex.sh` (the default when `codex` is on
-   PATH), `cursor.sh` (cursor-agent with Grok) and `stub.sh`. A verdict that
-   does not parse, or a judge that fails, is a blocking finding.
-   A blocking finding sends you back to the draft; the user, not you, may
-   overrule one: `upstream.py judge override N --reason "..."`. With no judge
-   available the state passes on the symbolic checks and records
-   "not judged". Verdicts go to `upstream/judge.log`.
+   permalink), paths and host names scrubbed. An adversarial LLM of another
+   family lists what the maintainer would have to check, by one standard: a
+   sentence is supported when a claim's output shows it (a code line shown
+   by grep or a diff counts); it flags sentences no claim bears on, causal
+   or runtime claims resting only on a code reading, numbers in no output,
+   third-party mentions, private details and tone, and never judges the
+   contract lines (disclosure, Related, footer, an `**Environment.**`
+   paragraph), which the request marks as such. `--judge-cmd` is any
+   executable that reads the JSON request on stdin and prints
+   `{"findings": [...]}`, and `scripts/judges/` ships `codex.sh` (the
+   default when `codex` is on PATH), `cursor.sh` (cursor-agent with Grok)
+   and `stub.sh`. A verdict that does not parse, or a judge that fails, is a
+   blocking finding. A blocking finding sends you back to the draft; the
+   user, not you, may overrule one:
+   `upstream.py judge override N --reason "..."`. With no judge available
+   the state passes on the symbolic checks and records "not judged".
+   Verdicts go to `upstream/judge.log`.
 6. Show the user the draft and wait. Their changes go into the file, then
    `draft check` and `judge` again. On their explicit yes to this text in
    chat: `upstream.py approve --by @HANDLE`, which binds the approval to the
@@ -284,15 +292,14 @@ list), the handle from the user's instructions.
    other change sends the state back to approval with the diff, to show the
    user again.
 7. `upstream.py post --account MACHINE_ACCOUNT`, the machine account from
-   the user's instructions (`~/.claude/CLAUDE.md`, `AGENTS.md`). It takes a
-   token with `gh auth token --user` for that one command (never
-   `gh auth switch`, never printed), runs `gh issue create`,
-   `gh issue|pr comment` or `gh pr create --head OWNER:BRANCH`, checks that
-   the author of what landed is the machine account and that `gh auth
-   status` still has the user active, and appends the URL to
-   `upstream/RECORD.md`. No machine account: post as the user only if they
-   say so. Unbind the PR if your harness watches it; report the URL and
-   record it where the work lives.
+   the user's instructions. It takes a token with `gh auth token --user` for
+   that one command (never `gh auth switch`, never printed), runs
+   `gh issue create`, `gh issue|pr comment` or
+   `gh pr create --head OWNER:BRANCH`, checks that the author of what landed
+   is the machine account and that `gh auth status` still has the user
+   active, and appends the URL to `upstream/RECORD.md`. No machine account:
+   post as the user only if they say so. Unbind the PR if your harness
+   watches it; report the URL and record it where the work lives.
 8. Outside the machine: fix the user's copy, with a test. Then the rungs,
    each that applies, cross-linked: (1) the issue with the diff inline;
    (2) a PR, even one that may not merge (`fetchpatch` can consume it): a
