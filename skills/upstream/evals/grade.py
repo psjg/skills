@@ -209,10 +209,10 @@ def grade(run: Path, eval_id: int) -> list[dict]:
 if __name__ == "__main__":
     run, eval_id = Path(sys.argv[1]), int(sys.argv[2])
     expectations = grade(run, eval_id)
-    # The user wants model, harness AND reasoning effort in the disclosure line.
+    # The user wants the model in the disclosure line and nothing else about the run: no harness, no effort.
     up = next((e for e in expectations if e["text"] == "disclosure up front"), None)
     if up is not None:
-        expectations.append(check("disclosure names the reasoning effort", up["passed"] and EFFORT.search(up["evidence"]),
+        expectations.append(check("disclosure names no reasoning effort", up["passed"] and not EFFORT.search(up["evidence"]),
                                   up["evidence"] if up["passed"] else "no disclosure line up front"))
     transcript = (run / "transcript.txt").read_text(errors="replace") if (run / "transcript.txt").exists() else ""
     if re.search(r"github\.invalid|not logged into any GitHub|Could not resolve to a Repository", transcript):

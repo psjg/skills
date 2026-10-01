@@ -238,14 +238,13 @@ list), the handle from the user's instructions.
    cannot tell who typed that, so only on that yes. `UPSTREAM_CONFIG`
    (default `~/.config/upstream/config.json`) adds `private` terms, replaces
    the `tiers` list and sets `model`.
-5. The checks above hold the first line to: an agent disclosure with model
-   (its family only under `"model": "family"`), harness *and* reasoning
-   effort ("reasoning effort not reported" if the runtime does not say), the
-   user's `@handle`, and what the user did, at the level that is true:
+5. The checks above hold the first line to: an agent disclosure naming the
+   model, truthfully (its family only under `"model": "family"`; never
+   another model), the user's `@handle`, and what the user did, at the level
+   that is true. No harness, no reasoning effort: noise to the reader.
 
-   > *Written by an AI agent (Claude Opus 5.5, Claude Code, reasoning effort
-   > max) for @HANDLE, who read the report and ran its commands, and approved
-   > posting.*
+   > *Written by an AI agent (Claude Opus 5.5) for @HANDLE, who read the
+   > report and ran its commands, and approved posting.*
 
    Other true levels: "reviewed it", "did not review the C++ line by line".
    Writer and worker different agents: say so. On a mailing list the

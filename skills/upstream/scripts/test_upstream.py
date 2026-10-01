@@ -29,7 +29,7 @@ EVALS = Path(os.environ.get("UPSTREAM_EVALS", HERE.parent / "evals"))
 REPO = "psjg/upstream-issue-eval-fixture"
 CMD = """cd tinyparse && python3 -c 'from tinyparse import parse_line; print(parse_line("a,b,"))'"""
 CLAIM = "`parse_line(\"a,b,\")` returns `['a', 'b']` on tinyparse 0.4.1: the `if cur:` guard drops the trailing empty field."
-DISCLOSE = "*Written by an AI agent (Claude Opus 5.5, Claude Code, reasoning effort high) for {h}, who ran its commands and approved posting.*"
+DISCLOSE = "*Written by an AI agent (Claude Opus 5.5) for {h}, who ran its commands and approved posting.*"
 FOOTER = "*Prepared with the upstream skill (psjg/skills@abc1234), which lists the checks this report claims to pass.*"
 FAKE_JUDGE = """#!{py}
 # Blocks every draft line that mentions an import job: a planted claim no
@@ -507,11 +507,11 @@ print(f"calls: {n}")
 
     def test_disclosure_names_the_model_not_the_plan(self):
         self.walk_to_draft()
-        self.write_draft(disclose=DISCLOSE.replace("Opus 5.5,", "Opus 5.5, on a Claude Max plan,"))
+        self.write_draft(disclose=DISCLOSE.replace("Opus 5.5)", "Opus 5.5, on a Claude Max plan)"))
         out = self.up("draft", "check", "draft.md")
         self.assertIn('tier "Claude Max"', out)
         self.assertNotIn('"Claude Opus 5.5"', out)
-        wrapped = ("*Written by an AI agent for {h} (Claude Code, reasoning effort high, model Claude\n"
+        wrapped = ("*Written by an AI agent for {h} (model Claude\n"
                    "Opus 5.5), who ran its commands and approved posting.*")
         self.write_draft(disclose=wrapped)
         self.assertIn("PASS  private details: none", self.up("draft", "check", "draft.md"))

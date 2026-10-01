@@ -697,7 +697,6 @@ def check_draft(text: str, L: dict, flags: list[dict]) -> list[tuple[str, bool, 
     checks = [
         ("title", L["channel"] not in ("issue", "pr") or bool(title), "first line `# Title`" if not title else title),
         ("disclosure first", bool(DISCLOSURE.search(first)), first[:100]),
-        ("reasoning effort", "reasoning effort" in first.lower(), "first line must name it, or say 'reasoning effort not reported'"),
         ("user handle", bool(handle), f"{user} without @ (no-mentions house rule)" if quiet else f"@{user} on the first line"),
         ("footer last", bool(FOOTER.search(last)), last[:100]),
         ("no other mentions", not mentions, ", ".join(mentions) or "none"),
