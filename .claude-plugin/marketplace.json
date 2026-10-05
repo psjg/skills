@@ -1,0 +1,8 @@
+{
+  "name": "psjg-skills",
+  "owner": { "name": "PSJ", "url": "https://github.com/psjg" },
+  "metadata": { "description": "PSJ's agent skills" },
+  "plugins": [
+    { "name": "psj", "source": "./", "description": "Agent skills by PSJ as /psj:<skill>" }
+  ]
+}

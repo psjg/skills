@@ -1,0 +1,8 @@
+{
+  "name": "psj",
+  "version": "0.1.0",
+  "description": "Agent skills by PSJ, plus his forks of other people's skills, as /psj:<skill>.",
+  "author": { "name": "PSJ", "url": "https://github.com/psjg" },
+  "homepage": "https://github.com/psjg/skills",
+  "license": "RPL-1.5"
+}

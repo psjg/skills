@@ -2,6 +2,8 @@
 !/.gitignore
 !/LICENSE
 !/README.md
+!/.claude-plugin/
+!/.claude-plugin/*.json
 !/skills/
 !/skills/**
 # Evidence and caches a runbook makes; never source (see each SHAR.org Bootstrap).
