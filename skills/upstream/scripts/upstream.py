@@ -405,7 +405,7 @@ def check_draft(text: str, L: dict) -> list[tuple[str, bool, str]]:
     checks = [
         ("title", L["channel"] not in ("issue", "pr") or bool(title), "first line `# Title`" if not title else title),
         ("disclosure first", bool(DISCLOSURE.search(first)), first[:100]),
-        ("reasoning effort", "reasoning effort" in first.lower(), "first line must name it, or say 'reasoning effort not reported'"),
+        ("reasoning effort", True, "named" if "reasoning effort" in first.lower() else "not named; optional"),
         ("user handle", bool(handle), f"{user} without @ (no-mentions house rule)" if quiet else f"@{user} on the first line"),
         ("footer last", bool(FOOTER.search(last)), last[:100]),
         ("no other mentions", not mentions, ", ".join(mentions) or "none"),

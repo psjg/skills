@@ -296,6 +296,17 @@ class Flow(Base):
         self.assertIn("+13 passed, 1 failed", out)
         self.assertEqual(self.state()["state"], "draft")
 
+    def test_reasoning_effort_is_optional(self):
+        self.walk_to_draft()
+        text = self.write_draft().replace(", Claude Code, reasoning effort high", "")
+        self.assertNotIn("reasoning effort", text.splitlines()[2])
+        (self.work / "draft.md").write_text(text)
+        out = self.up("draft", "check", "draft.md")
+        self.assertIn("PASS  reasoning effort: not named; optional", out)
+        self.assertNotIn("FAIL", out)
+        self.write_draft()  # naming it passes as well
+        self.assertIn("PASS  reasoning effort: named", self.up("draft", "check", "draft.md"))
+
     def test_third_party_mention_fails(self):
         self.walk_to_draft()
         self.write_draft(extra="\ncc @maintainer\n")

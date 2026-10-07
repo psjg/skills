@@ -230,14 +230,18 @@ list), the handle from the user's instructions.
    (counts of `<details>`, code blocks and mentions; skipped with a note
    where gh cannot render) and re-runs every claim's command, failing on any
    changed output with the diff.
-5. The checks above hold the first line to: an agent disclosure with model,
-   harness *and* reasoning effort ("reasoning effort not reported" if the
-   runtime does not say), the user's `@handle`, and what the user did, at the
-   level that is true:
+5. The checks above hold the first line to: an agent disclosure naming the
+   model, the user's `@handle`, and what the user did, at the level that is
+   true. The harness and the reasoning effort are optional: they appear when
+   the user's own instructions ask for them and stay out when those say
+   model only (on psjg's machines: model only; the check reports whether
+   effort is named and never fails on it):
 
-   > *Written by an AI agent (Claude Opus 5.5, Claude Code, reasoning effort
-   > max) for @psjg, who read the report and ran its commands, and approved
-   > posting.*
+   > *Written by an AI agent (Claude Opus 5.5) for @psjg, who read the
+   > report and ran its commands, and approved posting.*
+
+   With the optional parts, where the user wants them: "(Claude Opus 5.5,
+   Claude Code, reasoning effort max)".
 
    Other true levels: "reviewed it", "did not review the C++ line by line".
    Writer and worker different agents: say so. On a mailing list the
