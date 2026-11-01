@@ -33,7 +33,22 @@ source and page count. Files go to `~/reading/fpl/<topic>/` as
   `wp-content/uploads/.../*.pdf`; ACL papers at `aclanthology.org/<id>.pdf`;
   ÚFAL tech reports at `ufal.mff.cuni.cz/techrep/trNN.pdf`; Georgia Tech
   `repository.gatech.edu/bitstreams/<id>/download`; course mirrors (ida.liu.se).
+- Books before ~1930, and many scanned older books: archive.org. Search with
+  `archive.org/advancedsearch.php?q=title:(…) AND creator:(…)&fl[]=identifier&fl[]=year&fl[]=access-restricted-item&output=json`;
+  only items without `access-restricted-item: true` are open downloads (the
+  restricted ones are lending copies). List files with `archive.org/metadata/<id>`
+  and fetch `archive.org/download/<id>/<file>.pdf`. Digital Library of India
+  items (`in.ernet.dli.*`, `dli.ernet.*`) are open too. Got Richards 1929 this way.
+- Chapters in paywalled books often exist as the authors' own tech report or
+  preprint: KMi `research-archive.stem.open.ac.uk/.../KMI-05-18.pdf`
+  (Buckingham Shum 2006), ÚFAL `ufal.mff.cuni.cz/pdt1/Corpora/PDT_1.0/References/`
+  (Böhmová 2003), ISI reports at DTIC (curl gets 403 there; try the browser).
+  Search "<title> pdf" plus the author's institute before declaring a chapter
+  unobtainable.
 - CORE and ZORA often answer 403 or HTML to curl; skip them.
+- Always check the title on page 1 after a download: two ACL Anthology fetches
+  on 10-31 used a neighbouring id and saved a different paper under the right
+  name. Resolve the id from the anthology page, not by guessing.
 
 ## 2. Chrome extension + UU proxy (the route that works)
 
@@ -59,8 +74,11 @@ tab group:
      the computer-use tools treat browsers as read-only.
 4. Check the file landed, rename, update the row.
 
-`~/Downloads` is TCC-protected for the sandbox: list or move with
-`osascript -e 'do shell script "…"'`.
+`~/Downloads` is TCC-protected for the sandbox, and `osascript -e 'do shell
+script "ls …"'` was refused too on 11-01. Finder can still list it:
+`tell application "Finder" to get name of every item of (path to downloads folder)`
+(via the Control_your_Mac osascript tool); grep that list for the titles.
+Ask PSJ to save into `~/reading/fpl/<topic>/` directly.
 
 Measured per publisher (UU licences, 2026-11-01):
 
@@ -71,7 +89,7 @@ Measured per publisher (UU licences, 2026-11-01):
 | Wiley | `/doi/pdfdirect/<doi>` in viewer → Save | the ePDF viewer's own button and `?download=true` never land |
 | JSTOR | Download → "Accept and download" (ask PSJ first: terms) → viewer → Save | |
 | De Gruyter | "Licensed", but no download ever starts through the proxy | leave to PSJ |
-| IEEE Xplore, Cambridge JoL, Springer chapters, T&F books/HCI | no UU licence | author copies via step 1 |
+| IEEE Xplore, Cambridge JoL, Springer chapters, T&F books/HCI | no UU licence | author copies or archive.org via step 1 |
 
 ## 3. What does not work
 
@@ -79,6 +97,20 @@ Browser pane: ScienceDirect refuses its user agent ("Claude/…"), it cannot
 POST to localhost, and its anchor downloads vanish after approval. curl on a
 signed ScienceDirect URL: Cloudflare challenge. Chrome `chrome://downloads` is
 unreadable by the tools; ask PSJ or look at the folders.
+
+## Before saying "not on disk"
+
+Grep an inventory (`find ~/reading ~/Documents ~/Desktop … -type f`) on
+surname, two title words and ISBN/DOI, open every candidate, and run Spotlight
+(`mdfind -onlyin "$HOME"`) as a second method. A review, or another work by
+the same author, is not a match; another edition is. Scanned PDFs without a
+text layer only match on filename: measure the middle pages
+(`pdftotext -f mid -l mid+2`), not pages 1-3 (covers), and OCR the ones that
+are empty. On 11-01 this found two wrong files under right names and one
+manual already on disk.
+
+Shadow libraries (Anna's Archive and the like) are PSJ's own choice; never
+fetch from them yourself, but take in what he saves.
 
 ## Hygiene
 
