@@ -970,17 +970,21 @@ def cmd_post(a, w: Work):
     require(L, w, "approved", exactly=True)
     if L.get("list"):
         raise Refused(f"a mailing-list report is sent by the human to {L['list']}; this script posts only to GitHub")
+    if a.edit_last and L["channel"] != "comment":
+        raise Refused("--edit-last replaces the machine account's last comment; it applies only to --channel comment")
     token = machine_token(a.account)
     body, repo, d = str(w.dir / "body.md"), L["repo"], L["draft"]
     argv = {"issue": ["issue", "create", "-R", repo, "--title", d.get("title") or "", "--body-file", body],
             "pr": ["pr", "create", "-R", repo, "--title", d.get("title") or "", "--body-file", body] + (["--head", a.head] if a.head else []),
-            "comment": [L["on"], "comment", str(L["thread"]), "-R", repo, "--body-file", body]}[L["channel"]]
+            "comment": [L["on"], "comment", str(L["thread"]), "-R", repo, "--body-file", body]
+                       + (["--edit-last"] if a.edit_last else [])}[L["channel"]]
     rc, out, err = gh(*argv, token=token)
     out, err = out.replace(token, "<token>"), err.replace(token, "<token>")
     url = next((l.strip() for l in reversed(out.splitlines()) if l.strip().startswith("https://")), None)
     if rc or not url:
         raise Refused(f"gh {' '.join(argv[:2])} failed (exit {rc}): {err.strip()[:300]}")
-    L["post"] = {"url": url, "account": a.account, "at": now(), "draft": d["sha"]}  # recorded before any check
+    L["post"] = {"url": url, "account": a.account, "at": now(), "draft": d["sha"],
+                 "edited": bool(a.edit_last)}  # recorded before any check
     w.save(L)
     num = re.search(r"/(issues|pull)/(\d+)", url).group(2)
     cid = re.search(r"#issuecomment-(\d+)", url)
@@ -993,7 +997,7 @@ def cmd_post(a, w: Work):
         author = f"unverified (gh exit {rc}: {out.strip()[:80]})"
     L["post"] |= {"author": author, "verified": author == a.account, "user_still_active": auth_ok(L["user"])}
     with (w.dir / "RECORD.md").open("a") as f:
-        f.write(f"- {now()} {L['channel']} {url} posted as {a.account}; author {author}; "
+        f.write(f"- {now()} {L['channel']} {url} {'edited' if a.edit_last else 'posted'} as {a.account}; author {author}; "
                 f"draft sha256 {d['sha'][:12]}; approved by {L['approval']['by']}; "
                 f"gh active account still {L['user']}: {L['post']['user_still_active']}\n")
     w.log(L, f"posted {url} author={author}")
@@ -1139,6 +1143,8 @@ def main(argv=None):
     p = sub.add_parser("post")
     p.add_argument("--account", required=True)
     p.add_argument("--head", help="for a PR: the branch, OWNER:BRANCH")
+    p.add_argument("--edit-last", action="store_true",
+                   help="for a comment: replace the machine account's last comment in the thread instead of adding one")
     p = sub.add_parser("fork", help="rung 3 of step 8: the patch series in a fork under the machine account")
     p.add_argument("--account", required=True)
     p.add_argument("--branch", required=True)

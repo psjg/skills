@@ -594,6 +594,18 @@ exec {self.work / 'bin' / 'gh'} "$@"
         self.assertEqual(posts, [("psjg-claude", ["repo", "fork", REPO]), ("psjg-claude", ["issue", "create", "-R"]),
                                  ("psjg-claude", ["pr", "comment", "201"])])
 
+        # A correction replaces that comment through the same gates rather than adding a second one.
+        self.up("--workdir", "fix", "init", REPO, "--channel", "comment", "--thread", "201", "--on", "pr", "--user", "@psjg")
+        self.evidence("fix")
+        (self.work / "FIX.md").write_text(self.body(f"The fork: {self.fork_url}; the issue: {issue_url}; CI passes."))
+        self.up("--workdir", "fix", "draft", "check", "FIX.md")
+        self.up("--workdir", "fix", "judge", "--judge-cmd", str(HERE / "judges" / "stub.sh"))
+        self.up("--workdir", "fix", "approve", "--by", "@psjg")
+        self.up("--workdir", "fix", "post", "--account", "psjg-claude", "--edit-last")
+        edits = [c["as"] for c in self.calls() if c["argv"][:3] == ["pr", "comment", "201"] and "--edit-last" in c["argv"]]
+        self.assertEqual(edits, ["psjg-claude"])
+        self.assertIn(" edited as psjg-claude", (self.work / "fix" / "RECORD.md").read_text())
+
 
 class WontFix(Base):
     policy = "wontfix"
