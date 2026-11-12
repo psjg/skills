@@ -4,7 +4,7 @@ license: RPL-1.5
 metadata:
   version: "2"
 compatibility: "Python 3.10+ and GitHub via the gh CLI and git; scripts/upstream.py is stdlib only. Other forges (glab, berg, git send-email) follow the same steps, untested here."
-description: "Report to someone else's project as an agent: an issue or ticket, a comment or test report on their issue or PR, or a patch. Use it for every `gh issue create`, `gh issue comment` or `gh pr create` aimed at a repo, library, crate, CLI, app or dependency the user has not marked as their own (\"my repo\", their own handle), and for asks like \"send it upstream\", \"tell the maintainers\", \"is this a known issue? if not, write one up\" or \"post our numbers on that PR\". Load it the moment they ask, before searching for, recalling or re-asking about the finding: this skill says how to reconstruct and verify it. Covers the project's contribution and AI policy, a duplicate search, verified claims with commit-pinned links, disclosing the agent on the first line, the user's explicit go, and posting from the account the user keeps for agents. Tracking issues in the user's own repositories is not upstream."
+description: "Report to someone else's project as an agent: an issue or ticket, a comment or test report on their issue or PR, or a patch. Use it for every `gh issue create`, `gh issue comment` or `gh pr create` aimed at a repo, library, crate, CLI, app or dependency the user has not marked as their own (\"my repo\", their own handle), and for asks like \"send it upstream\", \"tell the maintainers\", \"is this a known issue? if not, write one up\", \"post our numbers on that PR\" or \"fix the comment we posted\". Load it the moment they ask, before searching for, recalling or re-asking about the finding: this skill says how to reconstruct and verify it. Covers the project's contribution and AI policy, a duplicate search, verified claims with commit-pinned links, disclosing the agent on the first line, the user's explicit go, and posting from the account the user keeps for agents. Tracking issues in the user's own repositories is not upstream."
 ---
 
 # upstream
@@ -84,7 +84,7 @@ $U env
 $U draft check draft.md
 $U judge
 $U approve --by @HANDLE                             # after the user's yes; --for FILE if it came first
-$U post --account MACHINE_ACCOUNT
+$U post --account MACHINE_ACCOUNT                   # a correction to our last comment: + --edit-last
 $U status                                           # at any point: what the next step still needs
 ```
 
@@ -297,6 +297,13 @@ list), the handle from the user's instructions.
    `upstream/RECORD.md`. No machine account: post as the user only if they
    say so. Unbind the PR if your harness watches it; report the URL and
    record it where the work lives.
+   A correction to a comment already posted goes through the same steps in
+   a new `--workdir` for that thread, then `post --edit-last`: it replaces
+   the machine account's last comment there (`gh issue|pr comment
+   --edit-last`) instead of adding a second one, and `RECORD.md` says
+   edited. Never type that edit by hand: it would skip the checks the first
+   version passed. GitHub sends no notification for an edit, so when the
+   readers must see the change, post a new comment that says what changed.
 8. Outside the machine: fix the user's copy, with a test. Then the rungs,
    each that applies, cross-linked: (1) the issue with the diff inline;
    (2) a PR, even one that may not merge (`fetchpatch` can consume it): a

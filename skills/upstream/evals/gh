@@ -40,6 +40,19 @@ maintainer commented:
   format spec says. We will not change it; closing as not planned.
 TXT
   exit 0 ;; esac ;;
+"f4 pr view"|"f4 api "*comments*|"f4 api "*pulls/7*|"f4 api "*issues/7*)
+  cat <<'TXT'
+Document the sep argument #7 (open)
+
+contributor commented:
+  Rebased on main, ready for testing on more platforms.
+
+psjg-claude commented (issuecomment-900001, the last comment):
+  *Written by an AI agent (Claude Sonnet 5) for @psjg, who ran the tests and approved posting.*
+
+  Test report for this PR on the sep-docs branch (5d1c0e2): `python3 -m pytest -q` gives 12 passed.
+TXT
+  exit 0 ;;
 "f3 pr view"|"f3 api "*comments*|"f3 api "*pulls/7*|"f3 api "*issues/7*)
   cat <<'TXT'
 Document the sep argument #7 (open)
