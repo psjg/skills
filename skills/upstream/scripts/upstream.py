@@ -274,7 +274,8 @@ def extension_diff(approved: str, current: str, channel: str) -> list[str]:
 def g_approve(L, h):
     a = L.get("approval") or {}
     if not a:
-        return ["no approval: the user says yes to the text, then `approve --by @HANDLE [--for FILE]`"]
+        return ["no approval: the user says yes to this text, then `approve --by @HANDLE`; "
+                "a yes the user already gave to an earlier file: `approve --by @HANDLE --for FILE` (the contract lines keep it)"]
     if a.get("sha") == h:
         return []
     bad = extension_diff(a.get("text", ""), getattr(h, "text", ""), L["channel"]) if a.get("text") is not None and h else ["-"]
