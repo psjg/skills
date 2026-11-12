@@ -156,6 +156,8 @@ for f in AGENTS.md CLAUDE.md; do
 - The user is @psjg on GitHub (account `psjg`, the active gh login).
 - Agents post issues, PRs and comments under the machine account
   `psjg-claude`, never under `psjg`.
+- github.com/psjg/upstream-issue-eval-fixture hosts tinyparse, a project
+  maintained by acme; it is not one of the user's own repositories.
 MD
 done
 if [ "$draft" = with-draft ]; then
