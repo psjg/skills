@@ -200,8 +200,13 @@ list), the handle from the user's instructions.
    Mark every hit with one clause:
    `upstream.py search mark N duplicate|related|unrelated "why"`. A duplicate
    ends the flow: comment there (`init --channel comment --thread N` in a new
-   `--workdir`) or tell the user. Test on the default branch or the latest
-   release; with a fork in between, read the file in both trees and file
+   `--workdir`) or tell the user. Before any root-cause theory, pin the
+   version the user ran and diff it against the default branch:
+   `git log <reported-tag>..origin/<default> -- <suspect files>`. If the
+   suspect lines changed, reproduce on the default branch first; a symptom
+   gone there is "fixed, unreleased" (tell the user which release has it),
+   not a draft. Reading the code of the wrong version produces a confident,
+   wrong theory. With a fork in between, read the file in both trees and file
    where the lines live. Every hit marked related or duplicate must be cited
    (`#N`) in the draft's Related line.
 3. `upstream.py claim add --text "<the sentence exactly as it will appear>"
