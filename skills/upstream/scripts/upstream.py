@@ -225,6 +225,8 @@ def g_search(L, h):
     return (need("issues" in kinds, "no successful issue search: `search --keywords \"...\"`")
             + need("prs" in kinds, "no successful PR search for a fix already proposed: `search --keywords \"...\"`")
             + need(not L.get("list") or "archive" in kinds, "no search of the list archive for proposed patches: `search --archive-cmd \"...\"`")
+            + need(L["channel"] == "comment" or "history" in kinds,
+                   "no search of the commits since the reported version: `search --history TAG..origin/DEFAULT --clone DIR [--paths ...]`")
             + [f"hit #{n} is not marked: `search mark {n} duplicate|related|unrelated \"why\"`" for n in unmarked])
 
 
@@ -717,22 +719,37 @@ def cmd_search(a, w: Work):
             runs.append((kind, ["gh", sub, "list", "-R", L["repo"], "--state", "all", "--search", a.keywords, "--json", fields]))
     if a.archive_cmd:
         runs.append(("archive", a.archive_cmd))
+    if a.history:
+        if not a.clone or ".." not in a.history:
+            raise Refused("--history takes REPORTED..DEFAULT (e.g. v0.1.9..origin/main) and needs --clone DIR")
+        runs.append(("history", ["git", "-C", a.clone, "log", "--format=%h %s", a.history, "--", *(a.paths or [])]))
     if not runs:
-        raise Refused("give --keywords \"...\" (issues and PRs) and, for a list, --archive-cmd \"...\"")
+        raise Refused("give --keywords \"...\" (issues and PRs), --history REPORTED..DEFAULT --clone DIR, and, for a list, --archive-cmd \"...\"")
     for kind, argv in runs:
         if kind == "archive":
             rc, out = shell(argv, os.getcwd())
             line, err = argv, ""
+        elif kind == "history":
+            p = subprocess.run(argv, capture_output=True, text=True)
+            rc, out, err, line = p.returncode, p.stdout, p.stderr, shlex.join(argv)
         else:
             rc, out, err = gh(*argv[1:])
             line = shlex.join(argv)
         L["searches"].append({"kind": kind, "cmd": line, "exit": rc, "at": now()})
         raw.append({"kind": kind, "cmd": line, "exit": rc, "stdout": out, "stderr": err})
         w.log(L, f"search {kind}: {line} -> exit {rc}")
-        if kind != "archive" and rc == 0 and out.strip():
+        if kind == "history" and rc == 0:
+            # A fix merged after the reported version names its PR or issue in
+            # the subject; each such number becomes a hit that must be marked.
+            for commit in out.splitlines():
+                for n in re.findall(r"#(\d+)", commit):
+                    L["hits"].setdefault(n, {"number": int(n), "title": commit, "state": "COMMITTED", "kind": kind})
+        elif kind != "archive" and rc == 0 and out.strip():
             for h in json.loads(out):
                 L["hits"][str(h["number"])] = {**h, "kind": kind}
         print(f"$ {line}\n  exit {rc}" + (f": {err.strip()[:200]}" if rc else ""))
+        if kind == "history" and rc == 0:
+            print("\n".join("  " + c for c in out.splitlines()) or "  (no commits in range)")
     (w.dir / "related.json").write_text(json.dumps(raw, indent=1) + "\n")
     for n, h in sorted(L["hits"].items(), key=lambda x: int(x[0])):
         mark = L["marks"].get(n, {}).get("mark", "UNMARKED")
@@ -1118,6 +1135,9 @@ def main(argv=None):
     p.add_argument("why", nargs="?")
     p.add_argument("--keywords")
     p.add_argument("--archive-cmd", help="a command that searches the list archive for proposed patches")
+    p.add_argument("--history", help="REPORTED..DEFAULT: commits after the version the user ran (a fix may be merged, unreleased)")
+    p.add_argument("--clone", help="a local clone of the project, fetched")
+    p.add_argument("--paths", nargs="*", help="limit --history to the suspect files")
     p = sub.add_parser("claim")
     p.add_argument("action", choices=["add", "list", "rm"])
     p.add_argument("n", nargs="?", type=int, help="for rm: the claim id")

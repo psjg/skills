@@ -72,6 +72,9 @@ class Base(unittest.TestCase):
         self.assertEqual(p.returncode == 0, ok, f"upstream.py {' '.join(args)} -> exit {p.returncode}\n{out}")
         return out
 
+    def history(self) -> list[str]:
+        return ["--history", f"{self.sha}..HEAD", "--clone", "tinyparse"]
+
     def state(self) -> dict:
         return json.loads((self.work / "upstream" / "STATE.json").read_text())
 
@@ -115,7 +118,7 @@ Related: #12 (closed) is about trailing whitespace, a different bug.
         self.up("init", REPO, *channel, "--user", "@psjg")
         self.up("rules", "--local", "tinyparse")
         self.up("rules", "classify", "--outcome", "welcome", "--form", "a sentence saying an AI tool helped")
-        self.up("search", "--keywords", "trailing empty field")
+        self.up("search", "--keywords", "trailing empty field", *self.history())
         self.up("search", "mark", "12", "related", "closed; trailing whitespace, a different bug")
         self.up("search", "mark", "7", "unrelated", "documentation")
         self.up("claim", "add", "--text", CLAIM, "--cmd", CMD, "--permalink", self.link)
@@ -399,10 +402,32 @@ class Flow(Base):
         self.up("init", REPO, "--channel", "issue", "--user", "@psjg")
         self.up("rules", "--local", "tinyparse")
         self.up("rules", "classify", "--outcome", "welcome", "--form", "x")
-        self.up("search", "--keywords", "trailing")
+        self.up("search", "--keywords", "trailing", *self.history())
         self.up("search", "mark", "12", "unrelated", "whitespace")
         self.assertIn("hit #7 is not marked", self.up("status"))
         self.up("claim", "add", "--text", "t", "--cmd", "true", "--no-permalink", "none", ok=False)
+
+    def test_history_search_required_and_fix_commits_become_hits(self):
+        """A fix merged after the version the user ran is found in the
+        commits, not in an issue search: its PR number must be marked."""
+        self.up("init", REPO, "--channel", "issue", "--user", "@psjg")
+        self.up("rules", "--local", "tinyparse")
+        self.up("rules", "classify", "--outcome", "welcome", "--form", "x")
+        self.up("search", "--keywords", "trailing")
+        self.up("search", "mark", "12", "unrelated", "whitespace")
+        self.up("search", "mark", "7", "unrelated", "docs")
+        self.assertIn("no search of the commits since the reported version", self.up("status"))
+        self.up("search", "--history", "HEAD", "--clone", "tinyparse", ok=False)  # not a range
+        clone = self.work / "tinyparse"
+        with open(clone / "tinyparse" / "__init__.py", "a") as f:
+            f.write("# fixed\n")
+        subprocess.run(["git", "-C", str(clone), "commit", "-qam", "fix: keep a trailing empty field (#31)"],
+                       env=self.env, check=True)
+        out = self.up("search", "--history", f"{self.sha}..HEAD", "--clone", "tinyparse", "--paths", "tinyparse")
+        self.assertIn("#31 [COMMITTED] ", out)
+        self.assertIn("hit #31 is not marked", self.up("status"))
+        self.up("search", "mark", "31", "duplicate", "fixed on main, unreleased")
+        self.assertEqual(self.state()["state"], "duplicate")
 
     def test_unpinned_permalink_refused(self):
         self.walk_to_draft()
@@ -417,7 +442,7 @@ class Flow(Base):
         self.up("rules", "--local", "tinyparse")
         self.up("rules", "classify", "--outcome", "refuse", "--form", "a human writes the description")
         self.assertEqual(self.state()["state"], "search")
-        self.up("search", "--keywords", "trailing empty field")
+        self.up("search", "--keywords", "trailing empty field", *self.history())
         self.up("search", "mark", "12", "unrelated", "whitespace")
         self.up("search", "mark", "7", "unrelated", "docs")
         self.up("claim", "add", "--text", CLAIM, "--cmd", CMD, "--permalink", self.link)
@@ -439,7 +464,7 @@ class Flow(Base):
         self.up("init", REPO, "--channel", "issue", "--list", "~psjg/tinyparse-devel@lists.sr.ht", "--user", "@psjg")
         self.up("rules", "--local", "tinyparse")
         self.up("rules", "classify", "--outcome", "welcome", "--form", "say so in the report")
-        self.up("search", "--keywords", "trailing")
+        self.up("search", "--keywords", "trailing", *self.history())
         self.assertIn("list archive", self.up("status"))
         self.up("search", "--archive-cmd", "echo no patches found")
         self.up("search", "mark", "12", "unrelated", "whitespace")
@@ -548,7 +573,7 @@ exec {self.work / 'bin' / 'gh'} "$@"
     def evidence(self, wd: str):
         self.up("--workdir", wd, "rules", "--local", "tinyparse")
         self.up("--workdir", wd, "rules", "classify", "--outcome", "welcome", "--form", "a sentence saying an AI tool helped")
-        self.up("--workdir", wd, "search", "--keywords", "trailing empty field")
+        self.up("--workdir", wd, "search", "--keywords", "trailing empty field", *self.history())
         self.up("--workdir", wd, "search", "mark", "12", "unrelated", "whitespace")
         self.up("--workdir", wd, "search", "mark", "7", "unrelated", "docs")
         self.up("--workdir", wd, "claim", "add", "--text", "The patched build passes 621/621.",
@@ -614,7 +639,7 @@ class WontFix(Base):
         self.up("init", REPO, "--channel", "issue", "--user", "@psjg")
         self.up("rules", "--local", "tinyparse")
         self.up("rules", "classify", "--outcome", "welcome", "--form", "x")
-        out = self.up("search", "--keywords", "trailing empty field")
+        out = self.up("search", "--keywords", "trailing empty field", *self.history())
         self.assertIn("#12 [CLOSED/NOT_PLANNED]", out)
         self.up("search", "mark", "12", "duplicate", "closed as not planned: by design since 0.3")
         self.assertEqual(self.state()["state"], "duplicate")
@@ -629,7 +654,7 @@ class NoMentions(Base):
         out = self.up("rules", "--local", "tinyparse")
         self.assertIn("thread:", out)  # the maintainer's no-mentions request is among the hits
         self.up("rules", "classify", "--outcome", "welcome", "--form", "x", "--no-mentions")
-        self.up("search", "--keywords", "sep")
+        self.up("search", "--keywords", "sep", *self.history())
         self.up("search", "mark", "12", "unrelated", "whitespace")
         self.up("search", "mark", "7", "related", "this thread")
         self.up("claim", "add", "--text", CLAIM, "--cmd", CMD, "--permalink", self.link)

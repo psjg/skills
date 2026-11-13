@@ -79,6 +79,7 @@ $U init OWNER/REPO --channel issue --user @HANDLE   # comment: --channel comment
 $U rules                                            # or: rules --local CLONE
 $U rules classify --outcome welcome --form "..."    # + --security / --no-mentions
 $U search --keywords "..."                          # then: search mark N related|unrelated|duplicate "why"
+$U search --history v1.2..origin/main --clone DIR --paths F...   # PR numbers in later commits become hits
 $U claim add --text "<sentence as posted>" --cmd "<command>" --permalink URL
 $U env
 $U draft check draft.md
@@ -202,7 +203,8 @@ list), the handle from the user's instructions.
    ends the flow: comment there (`init --channel comment --thread N` in a new
    `--workdir`) or tell the user. Before any root-cause theory, pin the
    version the user ran and diff it against the default branch:
-   `git log <reported-tag>..origin/<default> -- <suspect files>`. If the
+   `search --history <reported-tag>..origin/<default> --clone DIR --paths
+   <suspect files>`; every `#N` in those commits becomes a hit to mark. If the
    suspect lines changed, reproduce on the default branch first; a symptom
    gone there is "fixed, unreleased" (tell the user which release has it),
    not a draft. Reading the code of the wrong version produces a confident,
