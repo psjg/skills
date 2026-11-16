@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# pdf-cite PDF "quote" "comment" [--author NAME] [--page N]: highlight a cited passage in place.
+# Runs pdf-cite.py under a nix Python with PyMuPDF; see that file for the contract.
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+exec nix shell --impure --expr \
+	'with import (builtins.getFlake "nixpkgs") {}; python3.withPackages (p: [p.pymupdf])' \
+	-c python3 -I "$here/pdf-cite.py" "$@"

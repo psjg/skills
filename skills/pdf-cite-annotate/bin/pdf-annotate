@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# pdf-annotate PDF "quote" "note" --wiki PAGE [--bron PAGE --doi DOI --page N --author NAME]
+# Runs pdf-annotate.py under a nix Python with PyMuPDF; see that file for the contract.
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+exec nix shell --impure --expr \
+	'with import (builtins.getFlake "nixpkgs") {}; python3.withPackages (p: [p.pymupdf])' \
+	-c python3 -I "$here/pdf-annotate.py" "$@"
